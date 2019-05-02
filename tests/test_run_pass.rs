@@ -6,7 +6,7 @@ fn run(input: &str, expect: &str) {
     // compile
     Command::new("sh")
         .arg("-c")
-        .arg(format!("./target/debug/rcc \"{}\"", input))
+        .arg(format!("./target/debug/rcc2 \"{}\"", input))
         .status()
         .expect("process failed to execute");
 
@@ -31,7 +31,13 @@ fn get_code(filename: &str) -> String {
 }
 
 #[test]
-fn test_addidion() {
+fn test_addition() {
     let code = get_code("test_addition.c");
     run(&code, "3")
+}
+
+#[test]
+fn test_multiplication() {
+    let code = get_code("test_multiplication.c");
+    run(&code, "2")
 }

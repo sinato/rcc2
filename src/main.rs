@@ -1,7 +1,7 @@
 extern crate inkwell;
 
 use inkwell::context::Context;
-use std::path;
+use std::{env, path, process};
 
 mod lexer;
 mod parser;
@@ -34,21 +34,38 @@ fn binary_expression_emitter(node: BinaryExpNode) {
     let i64_type = context.i64_type();
     let const_x = i64_type.const_int(node.lhs.get_number(), false);
     let const_y = i64_type.const_int(node.rhs.get_number(), false);
-    let sum = builder.build_int_add(const_x, const_y, "main");
-    builder.build_return(Some(&sum));
+    let ret = match node.op {
+        Token::Op(op, _) => match op.as_ref() {
+            "+" => builder.build_int_add(const_x, const_y, "main"),
+            "*" => builder.build_int_mul(const_x, const_y, "main"),
+            _ => panic!("Operator not implemented."),
+        },
+        _ => panic!(),
+    };
+    builder.build_return(Some(&ret));
 
     // print_to_file
     let _ = module.print_to_file(path::Path::new("compiled.ll"));
 }
 
-fn main() {
-    let input = String::from("1 + 2");
+fn compiler(code: String) {
+    // let input = String::from("1 * 2");
     let lexer = Lexer::new();
-    let mut tokens = lexer.lex(input);
+    let mut tokens = lexer.lex(code);
     println!("{:?}", tokens);
     let lhs = tokens.pop().unwrap();
     let op = tokens.pop().unwrap();
     let rhs = tokens.pop().unwrap();
     let node = binary_expression_parser(lhs, rhs, op);
     binary_expression_emitter(node);
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage rcc2 \"<code>\"");
+        process::exit(1);
+    }
+    let code = args[1].to_string();
+    compiler(code);
 }
