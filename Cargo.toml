@@ -1,0 +1,9 @@
+[package]
+name = "rcc2"
+version = "0.1.0"
+authors = ["Shingo Kato <katomail0510@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+regex = "1"
+inkwell = { git  =  "https://github.com/TheDan64/inkwell", branch = 'llvm7-0' }
