@@ -17,7 +17,7 @@ fn compiler(code: String) {
     // println!("{:?}", tokens);
     let node = parser(&mut tokens);
     // dbg!(node.clone());
-    let emitter = Emitter::new();
+    let mut emitter = Emitter::new();
     emitter.emit(node);
     emitter.print_to_file();
 }

@@ -1,4 +1,5 @@
 int main() {
-    1 + 2;
+    int a;
+    a = 10;
     return 3 + 4 * 5;
 }

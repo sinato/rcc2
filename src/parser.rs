@@ -5,12 +5,24 @@ pub fn parser(tokens: &mut Tokens) -> Node {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Node {
-    Function(FunctionNode),
+pub struct Node {
+    pub declares: Vec<DeclareNode>,
 }
 impl Node {
     fn new(tokens: &mut Tokens) -> Node {
-        Node::Function(FunctionNode::new(tokens))
+        let mut declares: Vec<DeclareNode> = Vec::new();
+        declares.push(DeclareNode::new(tokens));
+        Node { declares }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum DeclareNode {
+    Function(FunctionNode),
+}
+impl DeclareNode {
+    fn new(tokens: &mut Tokens) -> DeclareNode {
+        DeclareNode::Function(FunctionNode::new(tokens))
     }
 }
 
@@ -66,12 +78,14 @@ impl FunctionNode {
 pub enum StatementNode {
     Expression(ExpressionNode),
     Return(ReturnNode),
+    Variable(VariableNode),
 }
 impl StatementNode {
     fn new(tokens: &mut Tokens) -> StatementNode {
         match tokens.peek() {
             Some(token) => match token {
                 Token::Return => StatementNode::Return(ReturnNode::new(tokens)),
+                Token::Type(_) => StatementNode::Variable(VariableNode::new(tokens)),
                 _ => StatementNode::Expression(ExpressionNode::new(tokens)), // TODO: impl error handling
             },
             None => panic!(),
@@ -126,6 +140,38 @@ impl ReturnNode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct VariableNode {
+    pub identifier: String,
+}
+impl VariableNode {
+    fn new(tokens: &mut Tokens) -> VariableNode {
+        let _function_type = match tokens.pop() {
+            Some(token) => match token {
+                Token::Type(function_type) => function_type,
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        let identifier = match tokens.pop() {
+            Some(token) => match token {
+                Token::Ide(identifier) => identifier,
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        // consume ";"
+        let _ = match tokens.peek() {
+            Some(token) => match token {
+                Token::Semi => tokens.pop(),
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        VariableNode { identifier }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum ExpBaseNode {
     Primary(PrimaryNode),
     Binary(BinaryNode),
@@ -142,17 +188,28 @@ pub struct PrimaryNode {
 }
 impl PrimaryNode {
     fn new(tokens: &mut Tokens) -> ExpBaseNode {
-        if let Some(Token::Num(num_string)) = tokens.pop() {
-            ExpBaseNode::Primary(PrimaryNode {
-                token: Token::Num(num_string),
-            })
-        } else {
-            panic!()
+        match tokens.pop() {
+            Some(token) => match token {
+                Token::Num(num_string) => ExpBaseNode::Primary(PrimaryNode {
+                    token: Token::Num(num_string),
+                }),
+                Token::Ide(ide_string) => ExpBaseNode::Primary(PrimaryNode {
+                    token: Token::Ide(ide_string),
+                }),
+                _ => panic!(),
+            },
+            None => panic!(),
         }
     }
     pub fn get_number_u64(&self) -> u64 {
         match self.clone().token {
             Token::Num(num) => num.parse::<u64>().expect(""),
+            _ => panic!(),
+        }
+    }
+    pub fn get_identifier(&self) -> String {
+        match self.clone().token {
+            Token::Ide(identifier) => identifier,
             _ => panic!(),
         }
     }

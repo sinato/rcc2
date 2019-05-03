@@ -46,6 +46,7 @@ impl Tokens {
 
 pub fn get_property(op: &String) -> Property {
     let mut map = HashMap::new();
+    map.insert("=", (2, Associativity::Right));
     map.insert("+", (12, Associativity::Left));
     map.insert("*", (13, Associativity::Left));
     let op: &str = &op;
