@@ -6,11 +6,49 @@ pub fn parser(tokens: &mut Tokens) -> Node {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
-    Exp(ExpNode),
+    Function(FunctionNode),
 }
 impl Node {
     fn new(tokens: &mut Tokens) -> Node {
-        Node::Exp(ExpNode::new(tokens))
+        Node::Function(FunctionNode::new(tokens))
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FunctionNode {
+    identifier: String,
+    arguments: Vec<ExpNode>,
+    pub expression: ExpNode,
+}
+impl FunctionNode {
+    fn new(tokens: &mut Tokens) -> FunctionNode {
+        let _function_type = match tokens.pop() {
+            Some(token) => match token {
+                Token::Type(function_type) => function_type,
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        let identifier = match tokens.pop() {
+            Some(token) => match token {
+                Token::Ide(identifier) => identifier,
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        tokens.pop(); // consume ParenS
+        let arguments = vec![];
+        tokens.pop(); // consume ParenE
+        tokens.pop(); // consume BlockS
+        tokens.pop(); // consume return
+        let expression = ExpNode::new(tokens);
+        tokens.pop(); // consume Semi
+        tokens.pop(); // consume BlockE
+        FunctionNode {
+            identifier,
+            arguments,
+            expression,
+        }
     }
 }
 

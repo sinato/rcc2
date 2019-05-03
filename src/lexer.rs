@@ -15,8 +15,15 @@ pub struct Property {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
+    Type(String), // TODO change to Enum
+    ParenS,
+    ParenE,
+    BlockS,
+    BlockE,
+    Semi,
     Num(String),
     Op(String, Property),
+    Ide(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -56,7 +63,17 @@ pub struct Lexer {
 impl Lexer {
     // static constructor
     pub fn new() -> Lexer {
-        let token_patterns = vec![("NUM", r"(\d+(\.\d)*)"), ("OP", r"(\+|-|\*|=|,)")];
+        let token_patterns = vec![
+            ("TYPE", r"int"),
+            ("PARENS", r"\("),
+            ("PARENE", r"\)"),
+            ("BLOCKS", r"\{"),
+            ("BLOCKE", r"\}"),
+            ("SEMI", r";"),
+            ("NUM", r"(\d+(\.\d)*)"),
+            ("OP", r"(\+|-|\*|=|,)"),
+            ("IDE", r"\w+"),
+        ];
         let re = make_regex(&token_patterns);
         let names = get_names(&token_patterns);
         let re = Regex::new(&re).expect("something went wrong making the regex");
@@ -76,14 +93,22 @@ impl Lexer {
                     typ = name.to_string();
                 }
             }
-            match typ.as_ref() {
-                "NUM" => tokens.push(Token::Num(val)),
+            let token = match typ.as_ref() {
+                "TYPE" => Token::Type(val),
+                "PARENS" => Token::ParenS,
+                "PARENE" => Token::ParenE,
+                "BLOCKS" => Token::BlockS,
+                "BLOCKE" => Token::BlockE,
+                "SEMI" => Token::Semi,
+                "NUM" => Token::Num(val),
                 "OP" => {
                     let val = val.trim_end().to_string();
-                    tokens.push(Token::Op(val.clone(), get_property(&val)))
+                    Token::Op(val.clone(), get_property(&val))
                 }
+                "IDE" => Token::Ide(val),
                 _ => panic!("This is not an expected panic"),
-            }
+            };
+            tokens.push(token);
         }
         Tokens { tokens }
     }

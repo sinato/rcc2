@@ -6,7 +6,7 @@ use inkwell::values::IntValue;
 use std::path;
 
 use crate::lexer::Token;
-use crate::parser::{BinaryNode, ExpNode, Node, PrimaryNode};
+use crate::parser::{BinaryNode, ExpNode, FunctionNode, Node, PrimaryNode};
 
 pub struct Emitter {
     context: Context,
@@ -28,19 +28,20 @@ impl Emitter {
         let _ = self.module.print_to_file(path::Path::new("compiled.ll"));
     }
     pub fn emit(&self, node: Node) {
-        // generate function
+        match node {
+            Node::Function(node) => {
+                self.emit_function(node);
+            }
+        }
+    }
+    pub fn emit_function(&self, node: FunctionNode) {
         let function =
             self.module
                 .add_function("main", self.context.i32_type().fn_type(&[], false), None);
         let basic_block = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&basic_block);
-
-        match node {
-            Node::Exp(node) => {
-                let ret = self.emit_expression(node);
-                self.builder.build_return(Some(&ret));
-            }
-        }
+        let ret = self.emit_expression(node.expression);
+        self.builder.build_return(Some(&ret));
     }
     pub fn emit_expression(&self, node: ExpNode) -> IntValue {
         match node {
