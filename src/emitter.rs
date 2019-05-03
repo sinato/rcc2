@@ -125,6 +125,11 @@ impl Emitter {
                     let const_rhs = self.emit_exp_base(*node.rhs);
                     self.builder.build_int_add(const_lhs, const_rhs, "main")
                 }
+                "-" => {
+                    let const_lhs = self.emit_exp_base(*node.lhs);
+                    let const_rhs = self.emit_exp_base(*node.rhs);
+                    self.builder.build_int_sub(const_lhs, const_rhs, "main")
+                }
                 "*" => {
                     let const_lhs = self.emit_exp_base(*node.lhs);
                     let const_rhs = self.emit_exp_base(*node.rhs);
