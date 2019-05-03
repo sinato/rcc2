@@ -1,6 +1,9 @@
 pub mod expression;
+pub mod variable;
+
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::ExpBaseNode;
+use crate::parser::node::variable::VariableNode;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
@@ -52,7 +55,7 @@ impl FunctionNode {
         tokens.pop(); // consume BlockS
         let mut statements: Vec<StatementNode> = Vec::new();
         loop {
-            match tokens.peek() {
+            match tokens.peek(1) {
                 Some(token) => match token {
                     Token::BlockE => break,
                     _ => {
@@ -80,7 +83,7 @@ pub enum StatementNode {
 }
 impl StatementNode {
     fn new(tokens: &mut Tokens) -> StatementNode {
-        match tokens.peek() {
+        match tokens.peek(1) {
             Some(token) => match token {
                 Token::Return => StatementNode::Return(ReturnNode::new(tokens)),
                 Token::Type(_) => StatementNode::Variable(VariableNode::new(tokens)),
@@ -99,7 +102,7 @@ impl ExpressionNode {
     fn new(tokens: &mut Tokens) -> ExpressionNode {
         let expression = ExpBaseNode::new(tokens);
         // consume ";"
-        let _ = match tokens.peek() {
+        let _ = match tokens.peek(1) {
             Some(token) => match token {
                 Token::Semi => tokens.pop(),
                 _ => panic!(),
@@ -117,7 +120,7 @@ pub struct ReturnNode {
 impl ReturnNode {
     fn new(tokens: &mut Tokens) -> ReturnNode {
         // consume "return"
-        let _ = match tokens.peek() {
+        let _ = match tokens.peek(1) {
             Some(token) => match token {
                 Token::Return => tokens.pop(),
                 _ => panic!(),
@@ -126,7 +129,7 @@ impl ReturnNode {
         };
         let expression = ExpBaseNode::new(tokens);
         // consume ";"
-        let _ = match tokens.peek() {
+        let _ = match tokens.peek(1) {
             Some(token) => match token {
                 Token::Semi => tokens.pop(),
                 _ => panic!(),
@@ -134,37 +137,5 @@ impl ReturnNode {
             None => panic!(),
         };
         ReturnNode { expression }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct VariableNode {
-    pub identifier: String,
-}
-impl VariableNode {
-    fn new(tokens: &mut Tokens) -> VariableNode {
-        let _function_type = match tokens.pop() {
-            Some(token) => match token {
-                Token::Type(function_type) => function_type,
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        let identifier = match tokens.pop() {
-            Some(token) => match token {
-                Token::Ide(identifier) => identifier,
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        // consume ";"
-        let _ = match tokens.peek() {
-            Some(token) => match token {
-                Token::Semi => tokens.pop(),
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        VariableNode { identifier }
     }
 }

@@ -35,8 +35,12 @@ impl Tokens {
         self.tokens.reverse();
         token
     }
-    pub fn peek(&self) -> Option<Token> {
-        let mut tokens = self.clone();
-        tokens.pop()
+    pub fn peek(&self, num: usize) -> Option<Token> {
+        let tokens = self.clone().tokens;
+        if num == 0 {
+            panic!();
+        } else {
+            tokens.into_iter().nth(num - 1)
+        }
     }
 }

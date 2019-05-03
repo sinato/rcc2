@@ -60,7 +60,7 @@ impl BinaryNode {
         tokens: &mut Tokens,
         min_precedence: u32,
     ) -> ExpBaseNode {
-        while let Some(token) = tokens.peek() {
+        while let Some(token) = tokens.peek(1) {
             match token {
                 Token::Op(op, property) => {
                     let (root_precedence, root_associativity) =
@@ -72,7 +72,7 @@ impl BinaryNode {
                     let op = Token::Op(op, property);
                     // TODO: impl error handling
                     let mut rhs = ExpBaseNode::new(tokens);
-                    while let Some(Token::Op(_, property2)) = tokens.peek() {
+                    while let Some(Token::Op(_, property2)) = tokens.peek(1) {
                         let (precedence, _associativity) =
                             (property2.precedence, property2.associativity);
                         match root_associativity {

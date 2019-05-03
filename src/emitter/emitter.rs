@@ -8,8 +8,9 @@ use std::path;
 use crate::emitter::environment::Environment;
 use crate::lexer::token::Token;
 use crate::parser::node::expression::{BinaryNode, ExpBaseNode, PrimaryNode};
+use crate::parser::node::variable::VariableNode;
 use crate::parser::node::{
-    DeclareNode, ExpressionNode, FunctionNode, Node, ReturnNode, StatementNode, VariableNode,
+    DeclareNode, ExpressionNode, FunctionNode, Node, ReturnNode, StatementNode,
 };
 
 pub struct Emitter {
@@ -67,12 +68,24 @@ impl Emitter {
         }
     }
     pub fn emit_variable(&mut self, node: VariableNode) -> IntValue {
-        let identifier = node.identifier;
-        let alloca = self
-            .builder
-            .build_alloca(self.context.i32_type(), &identifier);
-        self.environment.update(identifier, alloca); // TODO: impl detect redefinition
-        self.context.i32_type().const_int(0, false)
+        match node {
+            VariableNode::Simple(node) => {
+                let identifier = node.identifier;
+                let alloca = self
+                    .builder
+                    .build_alloca(self.context.i32_type(), &identifier);
+                self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                self.context.i32_type().const_int(0, false)
+            }
+            VariableNode::Initialize(node) => {
+                let identifier = node.identifier;
+                let alloca = self
+                    .builder
+                    .build_alloca(self.context.i32_type(), &identifier);
+                self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                self.emit_expression(node.expression) // Initialize
+            }
+        }
     }
     pub fn emit_return(&self, node: ReturnNode) -> IntValue {
         self.emit_exp_base(node.expression)
