@@ -17,8 +17,8 @@ impl Node {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionNode {
     identifier: String,
-    arguments: Vec<ExpNode>,
-    pub expression: ExpNode,
+    arguments: Vec<ExpBaseNode>, // TODO: change to Vec<declare>
+    pub statements: Vec<StatementNode>,
 }
 impl FunctionNode {
     fn new(tokens: &mut Tokens) -> FunctionNode {
@@ -40,25 +40,98 @@ impl FunctionNode {
         let arguments = vec![];
         tokens.pop(); // consume ParenE
         tokens.pop(); // consume BlockS
-        tokens.pop(); // consume return
-        let expression = ExpNode::new(tokens);
-        tokens.pop(); // consume Semi
+        let mut statements: Vec<StatementNode> = Vec::new();
+        loop {
+            match tokens.peek() {
+                Some(token) => match token {
+                    Token::BlockE => break,
+                    _ => {
+                        let statement = StatementNode::new(tokens);
+                        statements.push(statement);
+                    }
+                },
+                None => panic!(),
+            }
+        }
         tokens.pop(); // consume BlockE
         FunctionNode {
             identifier,
             arguments,
-            expression,
+            statements,
         }
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum ExpNode {
+pub enum StatementNode {
+    Expression(ExpressionNode),
+    Return(ReturnNode),
+}
+impl StatementNode {
+    fn new(tokens: &mut Tokens) -> StatementNode {
+        match tokens.peek() {
+            Some(token) => match token {
+                Token::Return => StatementNode::Return(ReturnNode::new(tokens)),
+                _ => StatementNode::Expression(ExpressionNode::new(tokens)), // TODO: impl error handling
+            },
+            None => panic!(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ExpressionNode {
+    pub expression: ExpBaseNode,
+}
+impl ExpressionNode {
+    fn new(tokens: &mut Tokens) -> ExpressionNode {
+        let expression = ExpBaseNode::new(tokens);
+        // consume ";"
+        let _ = match tokens.peek() {
+            Some(token) => match token {
+                Token::Semi => tokens.pop(),
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        ExpressionNode { expression }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ReturnNode {
+    pub expression: ExpBaseNode,
+}
+impl ReturnNode {
+    fn new(tokens: &mut Tokens) -> ReturnNode {
+        // consume "return"
+        let _ = match tokens.peek() {
+            Some(token) => match token {
+                Token::Return => tokens.pop(),
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        let expression = ExpBaseNode::new(tokens);
+        // consume ";"
+        let _ = match tokens.peek() {
+            Some(token) => match token {
+                Token::Semi => tokens.pop(),
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        ReturnNode { expression }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExpBaseNode {
     Primary(PrimaryNode),
     Binary(BinaryNode),
 }
-impl ExpNode {
-    fn new(tokens: &mut Tokens) -> ExpNode {
+impl ExpBaseNode {
+    fn new(tokens: &mut Tokens) -> ExpBaseNode {
         BinaryNode::new(tokens)
     }
 }
@@ -68,9 +141,9 @@ pub struct PrimaryNode {
     pub token: Token,
 }
 impl PrimaryNode {
-    fn new(tokens: &mut Tokens) -> ExpNode {
+    fn new(tokens: &mut Tokens) -> ExpBaseNode {
         if let Some(Token::Num(num_string)) = tokens.pop() {
-            ExpNode::Primary(PrimaryNode {
+            ExpBaseNode::Primary(PrimaryNode {
                 token: Token::Num(num_string),
             })
         } else {
@@ -88,15 +161,19 @@ impl PrimaryNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct BinaryNode {
     pub op: Token,
-    pub lhs: Box<ExpNode>,
-    pub rhs: Box<ExpNode>,
+    pub lhs: Box<ExpBaseNode>,
+    pub rhs: Box<ExpBaseNode>,
 }
 impl BinaryNode {
-    pub fn new(tokens: &mut Tokens) -> ExpNode {
+    pub fn new(tokens: &mut Tokens) -> ExpBaseNode {
         let lhs = PrimaryNode::new(tokens);
         BinaryNode::binary_expression(lhs, tokens, 0)
     }
-    fn binary_expression(mut lhs: ExpNode, tokens: &mut Tokens, min_precedence: u32) -> ExpNode {
+    fn binary_expression(
+        mut lhs: ExpBaseNode,
+        tokens: &mut Tokens,
+        min_precedence: u32,
+    ) -> ExpBaseNode {
         while let Some(token) = tokens.peek() {
             match token {
                 Token::Op(op, property) => {
@@ -108,7 +185,7 @@ impl BinaryNode {
                     tokens.pop(); // consume op
                     let op = Token::Op(op, property);
                     // TODO: impl error handling
-                    let mut rhs = ExpNode::new(tokens);
+                    let mut rhs = ExpBaseNode::new(tokens);
                     while let Some(Token::Op(_, property2)) = tokens.peek() {
                         let (precedence, _associativity) =
                             (property2.precedence, property2.associativity);
@@ -126,7 +203,7 @@ impl BinaryNode {
                         }
                         rhs = BinaryNode::binary_expression(rhs, tokens, precedence)
                     }
-                    lhs = ExpNode::Binary(BinaryNode {
+                    lhs = ExpBaseNode::Binary(BinaryNode {
                         op,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),

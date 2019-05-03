@@ -21,6 +21,7 @@ pub enum Token {
     BlockS,
     BlockE,
     Semi,
+    Return,
     Num(String),
     Op(String, Property),
     Ide(String),
@@ -70,6 +71,7 @@ impl Lexer {
             ("BLOCKS", r"\{"),
             ("BLOCKE", r"\}"),
             ("SEMI", r";"),
+            ("RETURN", r"return"),
             ("NUM", r"(\d+(\.\d)*)"),
             ("OP", r"(\+|-|\*|=|,)"),
             ("IDE", r"\w+"),
@@ -100,6 +102,7 @@ impl Lexer {
                 "BLOCKS" => Token::BlockS,
                 "BLOCKE" => Token::BlockE,
                 "SEMI" => Token::Semi,
+                "RETURN" => Token::Return,
                 "NUM" => Token::Num(val),
                 "OP" => {
                     let val = val.trim_end().to_string();
