@@ -53,3 +53,9 @@ fn test_multiplication() {
     let code = get_code("test_multiplication.c");
     run(&code, "2")
 }
+
+#[test]
+fn test_variable() {
+    let code = get_code("test_variable.c");
+    run(&code, "26")
+}

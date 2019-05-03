@@ -152,7 +152,25 @@ impl Emitter {
         ret
     }
     fn emit_primary(&self, node: PrimaryNode) -> IntValue {
-        let num = node.get_number_u64();
-        self.context.i32_type().const_int(num, false)
+        match node.token {
+            Token::Num(_) => {
+                let num = node.get_number_u64();
+                self.context.i32_type().const_int(num, false)
+            }
+            Token::Ide(_) => {
+                let identifier = node.get_identifier();
+                let alloca = match self.environment.get(&identifier) {
+                    Some(alloca) => alloca,
+                    None => panic!(format!(
+                        "error: use of undeclared identifie \'{}\'",
+                        identifier
+                    )),
+                };
+                self.builder
+                    .build_load(alloca, &identifier)
+                    .into_int_value()
+            }
+            _ => panic!(),
+        }
     }
 }
