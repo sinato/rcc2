@@ -1,14 +1,11 @@
 extern crate inkwell;
+extern crate rcc2;
 
 use std::{env, process};
 
-mod emitter;
-mod lexer;
-mod parser;
-
-use emitter::Emitter;
-use lexer::Lexer;
-use parser::parser;
+use rcc2::emitter::emitter::Emitter;
+use rcc2::lexer::Lexer;
+use rcc2::parser::parser;
 
 fn compiler(code: String) {
     // let input = String::from("1 * 2");

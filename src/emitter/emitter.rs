@@ -1,43 +1,16 @@
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::{IntValue, PointerValue};
+use inkwell::values::IntValue;
 
 use std::path;
 
-use crate::lexer::Token;
-use crate::parser::{
-    BinaryNode, DeclareNode, ExpBaseNode, ExpressionNode, FunctionNode, Node, PrimaryNode,
-    ReturnNode, StatementNode, VariableNode,
+use crate::emitter::environment::Environment;
+use crate::lexer::token::Token;
+use crate::parser::node::expression::{BinaryNode, ExpBaseNode, PrimaryNode};
+use crate::parser::node::{
+    DeclareNode, ExpressionNode, FunctionNode, Node, ReturnNode, StatementNode, VariableNode,
 };
-
-struct Environment {
-    variables: Vec<(String, PointerValue)>,
-}
-impl Environment {
-    fn new() -> Environment {
-        let variables: Vec<(String, PointerValue)> = Vec::new();
-        Environment { variables }
-    }
-    fn get(&self, skey: &String) -> Option<PointerValue> {
-        match self.variables.iter().rev().find(|x| &x.0 == skey) {
-            Some(val) => Some(val.1),
-            None => None,
-        }
-    }
-    fn find(&self, skey: &String) -> Option<usize> {
-        match self.variables.iter().rev().position(|x| &x.0 == skey) {
-            Some(idx) => Some(self.variables.len() - idx - 1),
-            None => None,
-        }
-    }
-    fn update(&mut self, skey: String, sval: PointerValue) {
-        match self.find(&skey) {
-            Some(idx) => self.variables[idx] = (skey, sval),
-            None => self.variables.push((skey, sval)),
-        }
-    }
-}
 
 pub struct Emitter {
     context: Context,
@@ -120,27 +93,6 @@ impl Emitter {
         // define main function
         let ret = match node.op {
             Token::Op(op, _) => match op.as_ref() {
-                "+" => {
-                    let const_lhs = self.emit_exp_base(*node.lhs);
-                    let const_rhs = self.emit_exp_base(*node.rhs);
-                    self.builder.build_int_add(const_lhs, const_rhs, "main")
-                }
-                "-" => {
-                    let const_lhs = self.emit_exp_base(*node.lhs);
-                    let const_rhs = self.emit_exp_base(*node.rhs);
-                    self.builder.build_int_sub(const_lhs, const_rhs, "main")
-                }
-                "*" => {
-                    let const_lhs = self.emit_exp_base(*node.lhs);
-                    let const_rhs = self.emit_exp_base(*node.rhs);
-                    self.builder.build_int_mul(const_lhs, const_rhs, "main")
-                }
-                "/" => {
-                    let const_lhs = self.emit_exp_base(*node.lhs);
-                    let const_rhs = self.emit_exp_base(*node.rhs);
-                    self.builder
-                        .build_int_unsigned_div(const_lhs, const_rhs, "main")
-                }
                 "=" => {
                     // lhs
                     let identifier = match *node.lhs {
@@ -156,7 +108,19 @@ impl Emitter {
                     self.builder.build_store(alloca, val);
                     self.context.i32_type().const_int(0, false)
                 }
-                _ => panic!("Operator not implemented."),
+                _ => {
+                    let const_lhs = self.emit_exp_base(*node.lhs);
+                    let const_rhs = self.emit_exp_base(*node.rhs);
+                    match op.as_ref() {
+                        "+" => self.builder.build_int_add(const_lhs, const_rhs, "main"),
+                        "-" => self.builder.build_int_sub(const_lhs, const_rhs, "main"),
+                        "*" => self.builder.build_int_mul(const_lhs, const_rhs, "main"),
+                        "/" => self
+                            .builder
+                            .build_int_unsigned_div(const_lhs, const_rhs, "main"),
+                        _ => panic!("Operator not implemented."),
+                    }
+                }
             },
             _ => panic!(),
         };
