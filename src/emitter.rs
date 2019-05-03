@@ -135,6 +135,12 @@ impl Emitter {
                     let const_rhs = self.emit_exp_base(*node.rhs);
                     self.builder.build_int_mul(const_lhs, const_rhs, "main")
                 }
+                "/" => {
+                    let const_lhs = self.emit_exp_base(*node.lhs);
+                    let const_rhs = self.emit_exp_base(*node.rhs);
+                    self.builder
+                        .build_int_unsigned_div(const_lhs, const_rhs, "main")
+                }
                 "=" => {
                     // lhs
                     let identifier = match *node.lhs {

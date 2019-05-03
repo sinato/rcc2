@@ -50,6 +50,7 @@ pub fn get_property(op: &String) -> Property {
     map.insert("+", (12, Associativity::Left));
     map.insert("-", (12, Associativity::Left));
     map.insert("*", (13, Associativity::Left));
+    map.insert("/", (13, Associativity::Left));
     let op: &str = &op;
     let (precedence, associativity): (u32, Associativity) = map[op].clone();
     Property {
@@ -75,7 +76,7 @@ impl Lexer {
             ("SEMI", r";"),
             ("RETURN", r"return"),
             ("NUM", r"(\d+(\.\d)*)"),
-            ("OP", r"(\+|-|\*|=|,)"),
+            ("OP", r"(\+|-|\*|/|=|,)"),
             ("IDE", r"\w+"),
         ];
         let re = make_regex(&token_patterns);
