@@ -1,31 +1,27 @@
 use crate::lexer::{Associativity, Token, Tokens};
 
 pub fn parser(tokens: &mut Tokens) -> Node {
-    binary_expression_parser(tokens)
-}
-
-pub fn binary_expression_parser(tokens: &mut Tokens) -> Node {
-    let node = BinaryExpNode::new(tokens);
-    node
+    Node::new(tokens)
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Node {
-    Primary(PrimaryNode),
-    BinaryExp(BinaryExpNode),
+    Exp(ExpNode),
 }
 impl Node {
     fn new(tokens: &mut Tokens) -> Node {
-        Node::Primary(PrimaryNode::new(tokens))
+        Node::Exp(ExpNode::new(tokens))
     }
-    pub fn get_number(&self) -> u64 {
-        match self.clone() {
-            Node::Primary(node) => match node.token {
-                Token::Num(num) => num.parse::<u64>().expect(""),
-                _ => panic!(),
-            },
-            _ => panic!(),
-        }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExpNode {
+    Primary(PrimaryNode),
+    Binary(BinaryNode),
+}
+impl ExpNode {
+    fn new(tokens: &mut Tokens) -> ExpNode {
+        BinaryNode::new(tokens)
     }
 }
 
@@ -34,24 +30,35 @@ pub struct PrimaryNode {
     pub token: Token,
 }
 impl PrimaryNode {
-    fn new(tokens: &mut Tokens) -> PrimaryNode {
-        let token = tokens.pop().unwrap();
-        PrimaryNode { token }
+    fn new(tokens: &mut Tokens) -> ExpNode {
+        if let Some(Token::Num(num_string)) = tokens.pop() {
+            ExpNode::Primary(PrimaryNode {
+                token: Token::Num(num_string),
+            })
+        } else {
+            panic!()
+        }
+    }
+    pub fn get_number_u64(&self) -> u64 {
+        match self.clone().token {
+            Token::Num(num) => num.parse::<u64>().expect(""),
+            _ => panic!(),
+        }
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct BinaryExpNode {
+pub struct BinaryNode {
     pub op: Token,
-    pub lhs: Box<Node>,
-    pub rhs: Box<Node>,
+    pub lhs: Box<ExpNode>,
+    pub rhs: Box<ExpNode>,
 }
-impl BinaryExpNode {
-    pub fn new(tokens: &mut Tokens) -> Node {
-        let lhs = Node::new(tokens);
-        BinaryExpNode::binary_expression(lhs, tokens, 0)
+impl BinaryNode {
+    pub fn new(tokens: &mut Tokens) -> ExpNode {
+        let lhs = PrimaryNode::new(tokens);
+        BinaryNode::binary_expression(lhs, tokens, 0)
     }
-    fn binary_expression(mut lhs: Node, tokens: &mut Tokens, min_precedence: u32) -> Node {
+    fn binary_expression(mut lhs: ExpNode, tokens: &mut Tokens, min_precedence: u32) -> ExpNode {
         while let Some(token) = tokens.peek() {
             match token {
                 Token::Op(op, property) => {
@@ -63,7 +70,7 @@ impl BinaryExpNode {
                     tokens.pop(); // consume op
                     let op = Token::Op(op, property);
                     // TODO: impl error handling
-                    let mut rhs = Node::new(tokens);
+                    let mut rhs = ExpNode::new(tokens);
                     while let Some(Token::Op(_, property2)) = tokens.peek() {
                         let (precedence, _associativity) =
                             (property2.precedence, property2.associativity);
@@ -79,9 +86,9 @@ impl BinaryExpNode {
                                 }
                             }
                         }
-                        rhs = BinaryExpNode::binary_expression(rhs, tokens, precedence)
+                        rhs = BinaryNode::binary_expression(rhs, tokens, precedence)
                     }
-                    lhs = Node::BinaryExp(BinaryExpNode {
+                    lhs = ExpNode::Binary(BinaryNode {
                         op,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),

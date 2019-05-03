@@ -37,6 +37,12 @@ fn test_addition() {
 }
 
 #[test]
+fn test_multi_term() {
+    let code = get_code("test_multi_term.c");
+    run(&code, "7")
+}
+
+#[test]
 fn test_multiplication() {
     let code = get_code("test_multiplication.c");
     run(&code, "2")

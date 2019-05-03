@@ -1,42 +1,69 @@
+use inkwell::builder::Builder;
 use inkwell::context::Context;
+use inkwell::module::Module;
+use inkwell::values::IntValue;
+
 use std::path;
 
-use crate::Node;
-use crate::Token;
+use crate::lexer::Token;
+use crate::parser::{BinaryNode, ExpNode, Node, PrimaryNode};
 
-pub fn binary_expression_emitter(node: Node) {
-    match node {
-        Node::BinaryExp(node) => {
-            // initialize
-            let context = Context::create();
-            let module = context.create_module("my_module");
-            let builder = context.create_builder();
-
-            // generate function
-            let function =
-                module.add_function("main", context.i64_type().fn_type(&[], false), None);
-            let basic_block = context.append_basic_block(&function, "entry");
-            builder.position_at_end(&basic_block);
-
-            // define main function
-            let i64_type = context.i64_type();
-            let lhs = *node.lhs;
-            let rhs = *node.rhs;
-            let const_x = i64_type.const_int(lhs.get_number(), false);
-            let const_y = i64_type.const_int(rhs.get_number(), false);
-            let ret = match node.op {
-                Token::Op(op, _) => match op.as_ref() {
-                    "+" => builder.build_int_add(const_x, const_y, "main"),
-                    "*" => builder.build_int_mul(const_x, const_y, "main"),
-                    _ => panic!("Operator not implemented."),
-                },
-                _ => panic!(),
-            };
-            builder.build_return(Some(&ret));
-
-            // print_to_file
-            let _ = module.print_to_file(path::Path::new("compiled.ll"));
+pub struct Emitter {
+    context: Context,
+    builder: Builder,
+    module: Module,
+}
+impl Emitter {
+    pub fn new() -> Emitter {
+        let context = Context::create();
+        let builder = context.create_builder();
+        let module = context.create_module("my_module");
+        Emitter {
+            context,
+            builder,
+            module,
         }
-        _ => panic!(),
+    }
+    pub fn print_to_file(&self) {
+        let _ = self.module.print_to_file(path::Path::new("compiled.ll"));
+    }
+    pub fn emit(&self, node: Node) {
+        // generate function
+        let function =
+            self.module
+                .add_function("main", self.context.i32_type().fn_type(&[], false), None);
+        let basic_block = self.context.append_basic_block(&function, "entry");
+        self.builder.position_at_end(&basic_block);
+
+        match node {
+            Node::Exp(node) => {
+                let ret = self.emit_expression(node);
+                self.builder.build_return(Some(&ret));
+            }
+        }
+    }
+    pub fn emit_expression(&self, node: ExpNode) -> IntValue {
+        match node {
+            ExpNode::Binary(node) => self.emit_binary(node),
+            ExpNode::Primary(node) => self.emit_primary(node),
+        }
+    }
+    fn emit_binary(&self, node: BinaryNode) -> IntValue {
+        // define main function
+        let const_lhs = self.emit_expression(*node.lhs);
+        let const_rhs = self.emit_expression(*node.rhs);
+        let ret = match node.op {
+            Token::Op(op, _) => match op.as_ref() {
+                "+" => self.builder.build_int_add(const_lhs, const_rhs, "main"),
+                "*" => self.builder.build_int_mul(const_lhs, const_rhs, "main"),
+                _ => panic!("Operator not implemented."),
+            },
+            _ => panic!(),
+        };
+        ret
+    }
+    fn emit_primary(&self, node: PrimaryNode) -> IntValue {
+        let num = node.get_number_u64();
+        self.context.i32_type().const_int(num, false)
     }
 }
