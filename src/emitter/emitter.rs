@@ -7,8 +7,8 @@ use std::path;
 
 use crate::emitter::environment::Environment;
 use crate::lexer::token::Token;
-use crate::parser::node::expression::{BinaryNode, ExpBaseNode, PrimaryNode};
-use crate::parser::node::variable::VariableNode;
+use crate::parser::node::expression::{BinaryNode, ExpBaseNode, PrefixNode, PrimaryNode};
+use crate::parser::node::variable::{SimpleDeclareNode, VariableNode};
 use crate::parser::node::{
     DeclareNode, ExpressionNode, FunctionNode, Node, ReturnNode, StatementNode,
 };
@@ -69,21 +69,31 @@ impl Emitter {
     }
     pub fn emit_variable(&mut self, node: VariableNode) -> IntValue {
         match node {
-            VariableNode::Simple(node) => {
+            VariableNode::Simple(node) => match node {
+                SimpleDeclareNode::Simple(node) => {
+                    let identifier = node.identifier;
+                    let alloca = self
+                        .builder
+                        .build_alloca(self.context.i32_type(), &identifier);
+                    self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                    self.context.i32_type().const_int(0, false)
+                }
+                SimpleDeclareNode::Initialize(node) => {
+                    let identifier = node.identifier;
+                    let alloca = self
+                        .builder
+                        .build_alloca(self.context.i32_type(), &identifier);
+                    self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                    self.emit_expression(node.expression) // Initialize
+                }
+            },
+            VariableNode::Pointer(node) => {
                 let identifier = node.identifier;
                 let alloca = self
                     .builder
                     .build_alloca(self.context.i32_type(), &identifier);
                 self.environment.update(identifier, alloca); // TODO: impl detect redefinition
                 self.context.i32_type().const_int(0, false)
-            }
-            VariableNode::Initialize(node) => {
-                let identifier = node.identifier;
-                let alloca = self
-                    .builder
-                    .build_alloca(self.context.i32_type(), &identifier);
-                self.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                self.emit_expression(node.expression) // Initialize
             }
         }
     }
@@ -99,6 +109,7 @@ impl Emitter {
         match node {
             ExpBaseNode::Binary(node) => self.emit_binary(node),
             ExpBaseNode::Primary(node) => self.emit_primary(node),
+            ExpBaseNode::Prefix(node) => self.emit_prefix(node),
         }
     }
 
@@ -150,7 +161,7 @@ impl Emitter {
                 let alloca = match self.environment.get(&identifier) {
                     Some(alloca) => alloca,
                     None => panic!(format!(
-                        "error: use of undeclared identifie \'{}\'",
+                        "error: use of undeclared identifier \'{}\'",
                         identifier
                     )),
                 };
@@ -158,6 +169,37 @@ impl Emitter {
                     .build_load(alloca, &identifier)
                     .into_int_value()
             }
+            _ => panic!(),
+        }
+    }
+    fn emit_prefix(&self, node: PrefixNode) -> IntValue {
+        match node.op.as_ref() {
+            "*" => {
+                let identifier = node.val.get_identifier();
+                let alloca = match self.environment.get(&identifier) {
+                    Some(alloca) => alloca,
+                    None => panic!(format!(
+                        "error: use of undeclared identifier \'{}\'",
+                        identifier
+                    )),
+                };
+                self.builder
+                    .build_load(alloca, &identifier)
+                    .into_int_value()
+            } // dereference
+            "&" => {
+                let identifier = node.val.get_identifier();
+                let alloca = match self.environment.get(&identifier) {
+                    Some(alloca) => alloca,
+                    None => panic!(format!(
+                        "error: use of undeclared identifier \'{}\'",
+                        identifier
+                    )),
+                };
+                self.builder
+                    .build_load(alloca, &identifier)
+                    .into_int_value()
+            } // reference
             _ => panic!(),
         }
     }

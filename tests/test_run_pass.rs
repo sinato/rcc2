@@ -61,6 +61,12 @@ fn test_multiplication() {
 }
 
 #[test]
+fn test_pointer() {
+    let code = get_code("test_pointer.c");
+    run(&code, "24")
+}
+
+#[test]
 fn test_subtraction() {
     let code = get_code("test_subtraction.c");
     run(&code, "5")

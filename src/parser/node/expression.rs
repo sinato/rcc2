@@ -3,6 +3,7 @@ use crate::lexer::token::{Associativity, Token, Tokens};
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExpBaseNode {
     Primary(PrimaryNode),
+    Prefix(PrefixNode),
     Binary(BinaryNode),
 }
 impl ExpBaseNode {
@@ -12,19 +13,42 @@ impl ExpBaseNode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct PrefixNode {
+    pub op: String,
+    pub val: PrimaryNode,
+}
+impl PrefixNode {
+    fn new(tokens: &mut Tokens) -> PrefixNode {
+        match tokens.pop() {
+            Some(token) => match token {
+                Token::Op(op, _) => match op.as_ref() {
+                    "*" | "&" => PrefixNode {
+                        op,
+                        val: PrimaryNode::new(tokens),
+                    },
+                    _ => panic!(),
+                },
+                _ => panic!(),
+            },
+            None => panic!(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct PrimaryNode {
     pub token: Token,
 }
 impl PrimaryNode {
-    fn new(tokens: &mut Tokens) -> ExpBaseNode {
+    fn new(tokens: &mut Tokens) -> PrimaryNode {
         match tokens.pop() {
             Some(token) => match token {
-                Token::Num(num_string) => ExpBaseNode::Primary(PrimaryNode {
+                Token::Num(num_string) => PrimaryNode {
                     token: Token::Num(num_string),
-                }),
-                Token::Ide(ide_string) => ExpBaseNode::Primary(PrimaryNode {
+                },
+                Token::Ide(ide_string) => PrimaryNode {
                     token: Token::Ide(ide_string),
-                }),
+                },
                 _ => panic!(),
             },
             None => panic!(),
@@ -52,7 +76,16 @@ pub struct BinaryNode {
 }
 impl BinaryNode {
     pub fn new(tokens: &mut Tokens) -> ExpBaseNode {
-        let lhs = PrimaryNode::new(tokens);
+        let lhs = match tokens.peek(1) {
+            Some(token) => match token {
+                Token::Op(op, _) => match op.as_ref() {
+                    "*" | "&" => ExpBaseNode::Prefix(PrefixNode::new(tokens)),
+                    _ => ExpBaseNode::Primary(PrimaryNode::new(tokens)),
+                },
+                _ => ExpBaseNode::Primary(PrimaryNode::new(tokens)),
+            },
+            None => ExpBaseNode::Primary(PrimaryNode::new(tokens)),
+        };
         BinaryNode::binary_expression(lhs, tokens, 0)
     }
     fn binary_expression(
