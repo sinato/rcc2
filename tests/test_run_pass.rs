@@ -43,6 +43,12 @@ fn test_array() {
 }
 
 #[test]
+fn test_array2() {
+    let code = get_code("test_array2.c");
+    run(&code, "77")
+}
+
+#[test]
 fn test_division() {
     let code = get_code("test_division.c");
     run(&code, "6")

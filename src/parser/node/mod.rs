@@ -1,29 +1,30 @@
+pub mod declare;
 pub mod expression;
-pub mod variable;
+pub mod statement;
 
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::ExpBaseNode;
-use crate::parser::node::variable::VariableNode;
+use crate::parser::node::statement::StatementNode;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Node {
-    pub declares: Vec<DeclareNode>,
+    pub declares: Vec<TopLevelDeclareNode>,
 }
 impl Node {
     pub fn new(tokens: &mut Tokens) -> Node {
-        let mut declares: Vec<DeclareNode> = Vec::new();
-        declares.push(DeclareNode::new(tokens));
+        let mut declares: Vec<TopLevelDeclareNode> = Vec::new();
+        declares.push(TopLevelDeclareNode::new(tokens));
         Node { declares }
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum DeclareNode {
+pub enum TopLevelDeclareNode {
     Function(FunctionNode),
 }
-impl DeclareNode {
-    fn new(tokens: &mut Tokens) -> DeclareNode {
-        DeclareNode::Function(FunctionNode::new(tokens))
+impl TopLevelDeclareNode {
+    fn new(tokens: &mut Tokens) -> TopLevelDeclareNode {
+        TopLevelDeclareNode::Function(FunctionNode::new(tokens))
     }
 }
 
@@ -35,27 +36,15 @@ pub struct FunctionNode {
 }
 impl FunctionNode {
     fn new(tokens: &mut Tokens) -> FunctionNode {
-        let _function_type = match tokens.pop() {
-            Some(token) => match token {
-                Token::Type(function_type) => function_type,
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        let identifier = match tokens.pop() {
-            Some(token) => match token {
-                Token::Ide(identifier) => identifier,
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
+        let _function_type = tokens.consume_type().expect("type");
+        let identifier = tokens.consume_identifier().expect("identifier");
         tokens.pop(); // consume ParenS
         let arguments = vec![];
         tokens.pop(); // consume ParenE
         tokens.pop(); // consume BlockS
         let mut statements: Vec<StatementNode> = Vec::new();
         loop {
-            match tokens.peek(1) {
+            match tokens.peek(0) {
                 Some(token) => match token {
                     Token::BlockE => break,
                     _ => {
@@ -72,70 +61,5 @@ impl FunctionNode {
             arguments,
             statements,
         }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum StatementNode {
-    Expression(ExpressionNode),
-    Return(ReturnNode),
-    Variable(VariableNode),
-}
-impl StatementNode {
-    fn new(tokens: &mut Tokens) -> StatementNode {
-        match tokens.peek(1) {
-            Some(token) => match token {
-                Token::Return => StatementNode::Return(ReturnNode::new(tokens)),
-                Token::Type(_) => StatementNode::Variable(VariableNode::new(tokens)),
-                _ => StatementNode::Expression(ExpressionNode::new(tokens)), // TODO: impl error handling
-            },
-            None => panic!(),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ExpressionNode {
-    pub expression: ExpBaseNode,
-}
-impl ExpressionNode {
-    fn new(tokens: &mut Tokens) -> ExpressionNode {
-        let expression = ExpBaseNode::new(tokens);
-        // consume ";"
-        let _ = match tokens.peek(1) {
-            Some(token) => match token {
-                Token::Semi => tokens.pop(),
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        ExpressionNode { expression }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ReturnNode {
-    pub expression: ExpBaseNode,
-}
-impl ReturnNode {
-    fn new(tokens: &mut Tokens) -> ReturnNode {
-        // consume "return"
-        let _ = match tokens.peek(1) {
-            Some(token) => match token {
-                Token::Return => tokens.pop(),
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        let expression = ExpBaseNode::new(tokens);
-        // consume ";"
-        let _ = match tokens.peek(1) {
-            Some(token) => match token {
-                Token::Semi => tokens.pop(),
-                _ => panic!(),
-            },
-            None => panic!(),
-        };
-        ReturnNode { expression }
     }
 }

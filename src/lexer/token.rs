@@ -39,10 +39,62 @@ impl Tokens {
     }
     pub fn peek(&self, num: usize) -> Option<Token> {
         let tokens = self.clone().tokens;
-        if num == 0 {
-            panic!();
-        } else {
-            tokens.into_iter().nth(num - 1)
+        tokens.into_iter().nth(num)
+    }
+    // TODO: simplify with using macro.
+    pub fn expect_identifier(&mut self) -> Result<String, String> {
+        if let Some(Token::Ide(identifier)) = self.peek(0) {
+            return Ok(identifier);
         }
+        return Err("Token::Ide not found".to_string());
+    }
+    pub fn consume_identifier(&mut self) -> Result<String, String> {
+        if let Some(Token::Ide(identifier)) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(identifier);
+        }
+        return Err("Token::Ide not found".to_string());
+    }
+    pub fn consume_operator(&mut self) -> Result<(String, Property), String> {
+        if let Some(Token::Op(op, property)) = self.peek(0) {
+            self.pop(); // consume
+            return Ok((op, property));
+        }
+        return Err("Token::Ope not found".to_string());
+    }
+    pub fn consume_semi(&mut self) -> Result<Token, String> {
+        if let Some(Token::Semi) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::Semi);
+        }
+        return Err("Token::Semi not found".to_string());
+    }
+    pub fn consume_square_s(&mut self) -> Result<Token, String> {
+        if let Some(Token::SquareS) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::SquareS);
+        }
+        return Err("Token::SquareS not found".to_string());
+    }
+    pub fn consume_square_e(&mut self) -> Result<Token, String> {
+        if let Some(Token::SquareE) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::SquareE);
+        }
+        return Err("Token::SquareE not found".to_string());
+    }
+    pub fn consume_type(&mut self) -> Result<String, String> {
+        if let Some(Token::Type(typ)) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(typ);
+        }
+        return Err("Token::Type not found".to_string());
+    }
+    pub fn consume_return(&mut self) -> Result<Token, String> {
+        if let Some(Token::Return) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::Return);
+        }
+        return Err("Token::Return not found".to_string());
     }
 }

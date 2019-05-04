@@ -7,13 +7,12 @@ use std::path;
 
 use crate::emitter::environment::Environment;
 use crate::lexer::token::Token;
+use crate::parser::node::declare::{DeclareNode, DirectDeclareNode};
 use crate::parser::node::expression::{
-    ArrayNode, BinaryNode, ExpBaseNode, PrefixNode, PrimaryNode, UnaryNode,
+    ArrayNode, BinaryNode, ExpBaseNode, ExpressionNode, PrefixNode, PrimaryNode, UnaryNode,
 };
-use crate::parser::node::variable::{DirectDeclareNode, SimpleDeclareNode, VariableNode};
-use crate::parser::node::{
-    DeclareNode, ExpressionNode, FunctionNode, Node, ReturnNode, StatementNode,
-};
+use crate::parser::node::statement::{ReturnNode, StatementNode};
+use crate::parser::node::{FunctionNode, Node, TopLevelDeclareNode};
 
 pub struct Emitter {
     context: Context,
@@ -43,9 +42,9 @@ impl Emitter {
             self.emit_declare(declare)
         }
     }
-    pub fn emit_declare(&mut self, node: DeclareNode) {
+    pub fn emit_declare(&mut self, node: TopLevelDeclareNode) {
         match node {
-            DeclareNode::Function(node) => self.emit_function(node),
+            TopLevelDeclareNode::Function(node) => self.emit_function(node),
         }
     }
     pub fn emit_function(&mut self, node: FunctionNode) {
@@ -66,15 +65,23 @@ impl Emitter {
         match node {
             StatementNode::Expression(node) => self.emit_expression(node),
             StatementNode::Return(node) => self.emit_return(node),
-            StatementNode::Variable(node) => self.emit_variable(node),
+            StatementNode::Declare(node) => self.emit_variable(node),
         }
     }
-    pub fn emit_variable(&mut self, node: VariableNode) -> IntValue {
+    pub fn emit_variable(&mut self, node: DeclareNode) -> IntValue {
         let const_zero = self.context.i32_type().const_int(0, false);
         match node {
-            VariableNode::Direct(node) => match node {
-                DirectDeclareNode::Simple(node) => match node {
-                    SimpleDeclareNode::Simple(node) => {
+            DeclareNode::Direct(node) => match node {
+                DirectDeclareNode::Variable(node) => match node.init_expression {
+                    Some(expression) => {
+                        let identifier = node.identifier;
+                        let alloca = self
+                            .builder
+                            .build_alloca(self.context.i32_type(), &identifier);
+                        self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                        self.emit_expression(expression) // Initialize
+                    }
+                    None => {
                         let identifier = node.identifier;
                         let alloca = self
                             .builder
@@ -82,18 +89,10 @@ impl Emitter {
                         self.environment.update(identifier, alloca); // TODO: impl detect redefinition
                         const_zero
                     }
-                    SimpleDeclareNode::Initialize(node) => {
-                        let identifier = node.identifier;
-                        let alloca = self
-                            .builder
-                            .build_alloca(self.context.i32_type(), &identifier);
-                        self.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                        self.emit_expression(node.expression) // Initialize
-                    }
                 },
                 DirectDeclareNode::Array(node) => {
                     let identifier = node.identifier;
-                    let array_type = self.context.i32_type().array_type(node.size);
+                    let array_type = self.context.i32_type().array_type(node.init_size);
                     let alloca = match self.environment.get(&identifier) {
                         Some(_) => panic!(format!("redefinition of {}", identifier)),
                         None => self.builder.build_alloca(array_type, &identifier),
@@ -102,7 +101,7 @@ impl Emitter {
                     const_zero
                 }
             },
-            VariableNode::Pointer(node) => {
+            DeclareNode::Pointer(node) => {
                 let identifier = node.identifier;
                 let alloca = self
                     .builder

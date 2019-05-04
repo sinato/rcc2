@@ -1,6 +1,18 @@
 use crate::lexer::token::{Associativity, Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct ExpressionNode {
+    pub expression: ExpBaseNode,
+}
+impl ExpressionNode {
+    pub fn new(tokens: &mut Tokens) -> ExpressionNode {
+        let expression = ExpBaseNode::new(tokens);
+        tokens.consume_semi().expect("semi");
+        ExpressionNode { expression }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum ExpBaseNode {
     Unary(UnaryNode),
     Binary(BinaryNode),
@@ -19,10 +31,10 @@ pub enum UnaryNode {
 }
 impl UnaryNode {
     fn new(tokens: &mut Tokens) -> UnaryNode {
-        match tokens.peek(1) {
+        match tokens.peek(0) {
             Some(token) => match token {
                 Token::Op(op, _) => match op.as_ref() {
-                    "*" | "&" => UnaryNode::Prefix(PrefixNode::new(tokens)),
+                    "*" | "&" => UnaryNode::new_with_prefix(tokens),
                     _ => UnaryNode::new_with_suffix(tokens),
                 },
                 _ => UnaryNode::new_with_suffix(tokens),
@@ -30,28 +42,24 @@ impl UnaryNode {
             None => UnaryNode::new_with_suffix(tokens),
         }
     }
+    fn new_with_prefix(tokens: &mut Tokens) -> UnaryNode {
+        let (op, _property) = tokens.consume_operator().expect("operator");
+        match op.as_ref() {
+            "*" | "&" => UnaryNode::Prefix(PrefixNode {
+                op,
+                val: PrimaryNode::new(tokens),
+            }),
+            _ => panic!(),
+        }
+    }
     fn new_with_suffix(tokens: &mut Tokens) -> UnaryNode {
-        match tokens.peek(2) {
+        match tokens.peek(1) {
             Some(token) => match token {
                 Token::SquareS => {
-                    let identifier = match tokens.pop() {
-                        Some(token) => match token {
-                            Token::Ide(identifier) => identifier,
-                            _ => panic!(),
-                        },
-                        None => panic!(),
-                    };
-                    if let Some(Token::SquareS) = tokens.pop() {
-                        ()
-                    } else {
-                        panic!()
-                    }
+                    let identifier = tokens.consume_identifier().expect("identifier");
+                    tokens.consume_square_s().expect("[");
                     let indexer = ExpBaseNode::new(tokens);
-                    if let Some(Token::SquareE) = tokens.pop() {
-                        ()
-                    } else {
-                        panic!()
-                    }
+                    tokens.consume_square_e().expect("]");
                     UnaryNode::Array(ArrayNode {
                         identifier,
                         indexer: Box::new(indexer),
@@ -68,23 +76,6 @@ impl UnaryNode {
 pub struct PrefixNode {
     pub op: String,
     pub val: PrimaryNode,
-}
-impl PrefixNode {
-    fn new(tokens: &mut Tokens) -> PrefixNode {
-        match tokens.pop() {
-            Some(token) => match token {
-                Token::Op(op, _) => match op.as_ref() {
-                    "*" | "&" => PrefixNode {
-                        op,
-                        val: PrimaryNode::new(tokens),
-                    },
-                    _ => panic!(),
-                },
-                _ => panic!(),
-            },
-            None => panic!(),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -142,19 +133,18 @@ impl BinaryNode {
         tokens: &mut Tokens,
         min_precedence: u32,
     ) -> ExpBaseNode {
-        while let Some(token) = tokens.peek(1) {
+        while let Some(token) = tokens.peek(0) {
             match token {
-                Token::Op(op, property) => {
+                Token::Op(_op, property) => {
                     let (root_precedence, root_associativity) =
                         (property.clone().precedence, property.clone().associativity);
                     if root_precedence < min_precedence {
                         break;
                     }
-                    tokens.pop(); // consume op
+                    let (op, property) = tokens.consume_operator().expect("operator");
                     let op = Token::Op(op, property);
-                    // TODO: impl error handling
                     let mut rhs = ExpBaseNode::new(tokens);
-                    while let Some(Token::Op(_, property2)) = tokens.peek(1) {
+                    while let Some(Token::Op(_, property2)) = tokens.peek(0) {
                         let (precedence, _associativity) =
                             (property2.precedence, property2.associativity);
                         match root_associativity {
