@@ -1,9 +1,10 @@
 use crate::lexer::token::{Token, Tokens};
-use crate::parser::node::ExpressionNode;
+use crate::parser::node::expression::UnaryNode;
+use crate::parser::node::{ExpBaseNode, ExpressionNode};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum VariableNode {
-    Simple(SimpleDeclareNode),
+    Direct(DirectDeclareNode),
     Pointer(PointerVariableNode),
 }
 impl VariableNode {
@@ -18,7 +19,7 @@ impl VariableNode {
         match tokens.peek(1) {
             Some(token) => match token {
                 Token::Ide(_identifier) => {
-                    VariableNode::Simple(SimpleDeclareNode::make(variable_type, tokens))
+                    VariableNode::Direct(DirectDeclareNode::make(variable_type, tokens))
                 }
                 Token::Op(op, _) => match op.as_ref() {
                     "*" => VariableNode::Pointer(PointerVariableNode::make(variable_type, tokens)),
@@ -57,12 +58,12 @@ impl PointerVariableNode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum SimpleDeclareNode {
-    Simple(SimpleVariableNode),
-    Initialize(InitializeVariableNode),
+pub enum DirectDeclareNode {
+    Simple(SimpleDeclareNode),
+    Array(ArrayVariableNode),
 }
-impl SimpleDeclareNode {
-    fn make(_variable_type: String, tokens: &mut Tokens) -> SimpleDeclareNode {
+impl DirectDeclareNode {
+    fn make(_variable_type: String, tokens: &mut Tokens) -> DirectDeclareNode {
         let identifier = match tokens.peek(1) {
             Some(token) => match token {
                 Token::Ide(identifier) => identifier,
@@ -72,22 +73,29 @@ impl SimpleDeclareNode {
         };
         match tokens.peek(2) {
             Some(token) => match token {
-                Token::Semi => {
-                    SimpleDeclareNode::Simple(SimpleVariableNode::make(_variable_type, tokens))
-                }
+                Token::Semi => DirectDeclareNode::Simple(SimpleDeclareNode::Simple(
+                    SimpleVariableNode::make(_variable_type, tokens),
+                )),
                 Token::Op(op, _) => match op.as_ref() {
-                    "=" => SimpleDeclareNode::Initialize(InitializeVariableNode::make(
-                        _variable_type,
-                        identifier,
-                        tokens,
+                    "=" => DirectDeclareNode::Simple(SimpleDeclareNode::Initialize(
+                        InitializeVariableNode::make(_variable_type, identifier, tokens),
                     )),
                     _ => panic!(),
                 },
+                Token::SquareS => {
+                    DirectDeclareNode::Array(ArrayVariableNode::make(_variable_type, tokens))
+                }
                 _ => panic!(),
             },
             None => panic!(),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum SimpleDeclareNode {
+    Simple(SimpleVariableNode),
+    Initialize(InitializeVariableNode),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -131,5 +139,47 @@ impl InitializeVariableNode {
             identifier,
             expression,
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ArrayVariableNode {
+    pub identifier: String,
+    pub size: u32,
+}
+impl ArrayVariableNode {
+    fn make(_variable_type: String, tokens: &mut Tokens) -> ArrayVariableNode {
+        let identifier = match tokens.pop() {
+            Some(token) => match token {
+                Token::Ide(identifier) => identifier,
+                _ => panic!(),
+            },
+            None => panic!(),
+        };
+        if let Some(Token::SquareS) = tokens.pop() {
+            ()
+        } else {
+            panic!()
+        }
+
+        let size_node = ExpBaseNode::new(tokens);
+        let size = match size_node {
+            ExpBaseNode::Unary(node) => match node {
+                UnaryNode::Primary(node) => node.get_number_u64() as u32,
+                _ => panic!(),
+            },
+            _ => panic!(),
+        };
+        if let Some(Token::SquareE) = tokens.pop() {
+            ()
+        } else {
+            panic!()
+        }
+        if let Some(Token::Semi) = tokens.pop() {
+            ()
+        } else {
+            panic!()
+        }
+        ArrayVariableNode { identifier, size }
     }
 }

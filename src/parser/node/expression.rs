@@ -2,13 +2,65 @@ use crate::lexer::token::{Associativity, Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExpBaseNode {
-    Primary(PrimaryNode),
-    Prefix(PrefixNode),
+    Unary(UnaryNode),
     Binary(BinaryNode),
 }
 impl ExpBaseNode {
     pub fn new(tokens: &mut Tokens) -> ExpBaseNode {
         BinaryNode::new(tokens)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum UnaryNode {
+    Primary(PrimaryNode),
+    Prefix(PrefixNode),
+    Array(ArrayNode),
+}
+impl UnaryNode {
+    fn new(tokens: &mut Tokens) -> UnaryNode {
+        match tokens.peek(1) {
+            Some(token) => match token {
+                Token::Op(op, _) => match op.as_ref() {
+                    "*" | "&" => UnaryNode::Prefix(PrefixNode::new(tokens)),
+                    _ => UnaryNode::new_with_suffix(tokens),
+                },
+                _ => UnaryNode::new_with_suffix(tokens),
+            },
+            None => UnaryNode::new_with_suffix(tokens),
+        }
+    }
+    fn new_with_suffix(tokens: &mut Tokens) -> UnaryNode {
+        match tokens.peek(2) {
+            Some(token) => match token {
+                Token::SquareS => {
+                    let identifier = match tokens.pop() {
+                        Some(token) => match token {
+                            Token::Ide(identifier) => identifier,
+                            _ => panic!(),
+                        },
+                        None => panic!(),
+                    };
+                    if let Some(Token::SquareS) = tokens.pop() {
+                        ()
+                    } else {
+                        panic!()
+                    }
+                    let indexer = ExpBaseNode::new(tokens);
+                    if let Some(Token::SquareE) = tokens.pop() {
+                        ()
+                    } else {
+                        panic!()
+                    }
+                    UnaryNode::Array(ArrayNode {
+                        identifier,
+                        indexer: Box::new(indexer),
+                    })
+                }
+                _ => UnaryNode::Primary(PrimaryNode::new(tokens)),
+            },
+            None => UnaryNode::Primary(PrimaryNode::new(tokens)),
+        }
     }
 }
 
@@ -33,6 +85,12 @@ impl PrefixNode {
             None => panic!(),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ArrayNode {
+    pub identifier: String,
+    pub indexer: Box<ExpBaseNode>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -76,16 +134,7 @@ pub struct BinaryNode {
 }
 impl BinaryNode {
     pub fn new(tokens: &mut Tokens) -> ExpBaseNode {
-        let lhs = match tokens.peek(1) {
-            Some(token) => match token {
-                Token::Op(op, _) => match op.as_ref() {
-                    "*" | "&" => ExpBaseNode::Prefix(PrefixNode::new(tokens)),
-                    _ => ExpBaseNode::Primary(PrimaryNode::new(tokens)),
-                },
-                _ => ExpBaseNode::Primary(PrimaryNode::new(tokens)),
-            },
-            None => ExpBaseNode::Primary(PrimaryNode::new(tokens)),
-        };
+        let lhs = ExpBaseNode::Unary(UnaryNode::new(tokens));
         BinaryNode::binary_expression(lhs, tokens, 0)
     }
     fn binary_expression(

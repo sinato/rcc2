@@ -11,7 +11,7 @@ fn compiler(code: String) {
     // let input = String::from("1 * 2");
     let lexer = Lexer::new();
     let mut tokens = lexer.lex(code);
-    // println!("{:?}", tokens);
+    // dbg!(tokens.clone());
     let node = parser(&mut tokens);
     // dbg!(node.clone());
     let mut emitter = Emitter::new();

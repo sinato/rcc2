@@ -1,14 +1,16 @@
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::IntValue;
+use inkwell::values::{IntValue, PointerValue};
 
 use std::path;
 
 use crate::emitter::environment::Environment;
 use crate::lexer::token::Token;
-use crate::parser::node::expression::{BinaryNode, ExpBaseNode, PrefixNode, PrimaryNode};
-use crate::parser::node::variable::{SimpleDeclareNode, VariableNode};
+use crate::parser::node::expression::{
+    ArrayNode, BinaryNode, ExpBaseNode, PrefixNode, PrimaryNode, UnaryNode,
+};
+use crate::parser::node::variable::{DirectDeclareNode, SimpleDeclareNode, VariableNode};
 use crate::parser::node::{
     DeclareNode, ExpressionNode, FunctionNode, Node, ReturnNode, StatementNode,
 };
@@ -68,23 +70,36 @@ impl Emitter {
         }
     }
     pub fn emit_variable(&mut self, node: VariableNode) -> IntValue {
+        let const_zero = self.context.i32_type().const_int(0, false);
         match node {
-            VariableNode::Simple(node) => match node {
-                SimpleDeclareNode::Simple(node) => {
+            VariableNode::Direct(node) => match node {
+                DirectDeclareNode::Simple(node) => match node {
+                    SimpleDeclareNode::Simple(node) => {
+                        let identifier = node.identifier;
+                        let alloca = self
+                            .builder
+                            .build_alloca(self.context.i32_type(), &identifier);
+                        self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                        const_zero
+                    }
+                    SimpleDeclareNode::Initialize(node) => {
+                        let identifier = node.identifier;
+                        let alloca = self
+                            .builder
+                            .build_alloca(self.context.i32_type(), &identifier);
+                        self.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                        self.emit_expression(node.expression) // Initialize
+                    }
+                },
+                DirectDeclareNode::Array(node) => {
                     let identifier = node.identifier;
-                    let alloca = self
-                        .builder
-                        .build_alloca(self.context.i32_type(), &identifier);
-                    self.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                    self.context.i32_type().const_int(0, false)
-                }
-                SimpleDeclareNode::Initialize(node) => {
-                    let identifier = node.identifier;
-                    let alloca = self
-                        .builder
-                        .build_alloca(self.context.i32_type(), &identifier);
-                    self.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                    self.emit_expression(node.expression) // Initialize
+                    let array_type = self.context.i32_type().array_type(node.size);
+                    let alloca = match self.environment.get(&identifier) {
+                        Some(_) => panic!(format!("redefinition of {}", identifier)),
+                        None => self.builder.build_alloca(array_type, &identifier),
+                    };
+                    self.environment.update(identifier, alloca);
+                    const_zero
                 }
             },
             VariableNode::Pointer(node) => {
@@ -107,9 +122,12 @@ impl Emitter {
 
     pub fn emit_exp_base(&self, node: ExpBaseNode) -> IntValue {
         match node {
+            ExpBaseNode::Unary(node) => match node {
+                UnaryNode::Primary(node) => self.emit_primary(node),
+                UnaryNode::Prefix(node) => self.emit_prefix(node),
+                UnaryNode::Array(node) => self.emit_array(node),
+            },
             ExpBaseNode::Binary(node) => self.emit_binary(node),
-            ExpBaseNode::Primary(node) => self.emit_primary(node),
-            ExpBaseNode::Prefix(node) => self.emit_prefix(node),
         }
     }
 
@@ -119,13 +137,35 @@ impl Emitter {
             Token::Op(op, _) => match op.as_ref() {
                 "=" => {
                     // lhs
-                    let identifier = match *node.lhs {
-                        ExpBaseNode::Primary(node) => node.get_identifier(),
+                    let alloca: PointerValue = match *node.lhs {
+                        ExpBaseNode::Unary(node) => match node {
+                            UnaryNode::Primary(node) => {
+                                let identifier = node.get_identifier();
+                                match self.environment.get(&identifier) {
+                                    Some(alloca) => alloca,
+                                    None => panic!(),
+                                }
+                            }
+                            UnaryNode::Array(node) => {
+                                let identifier = node.identifier;
+                                let array_alloca = match self.environment.get(&identifier) {
+                                    Some(alloca) => alloca,
+                                    None => panic!(),
+                                };
+                                let const_zero: IntValue =
+                                    self.context.i32_type().const_int(0, false);
+                                let indexer: IntValue = self.emit_exp_base(*node.indexer);
+                                unsafe {
+                                    self.builder.build_gep(
+                                        array_alloca,
+                                        &[const_zero, indexer],
+                                        "insert",
+                                    )
+                                }
+                            }
+                            _ => panic!(),
+                        },
                         _ => panic!(),
-                    };
-                    let alloca = match self.environment.get(&identifier) {
-                        Some(alloca) => alloca,
-                        None => panic!(),
                     };
                     // rhs
                     let val = self.emit_exp_base(*node.rhs);
@@ -202,5 +242,24 @@ impl Emitter {
             } // reference
             _ => panic!(),
         }
+    }
+    fn emit_array(&self, node: ArrayNode) -> IntValue {
+        let identifier = node.identifier;
+        let array_alloca = match self.environment.get(&identifier) {
+            Some(alloca) => alloca,
+            None => panic!(format!(
+                "error: use of undeclared identifier \'{}\'",
+                identifier
+            )),
+        };
+        let const_zero: IntValue = self.context.i32_type().const_int(0, false);
+        let indexer: IntValue = self.emit_exp_base(*node.indexer);
+        let array_element_alloca = unsafe {
+            self.builder
+                .build_gep(array_alloca, &[const_zero, indexer], "extracted_value")
+        };
+        self.builder
+            .build_load(array_element_alloca, &identifier)
+            .into_int_value()
     }
 }

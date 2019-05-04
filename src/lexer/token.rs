@@ -17,6 +17,8 @@ pub enum Token {
     ParenE,
     BlockS,
     BlockE,
+    SquareS,
+    SquareE,
     Semi,
     Return,
     Num(String),
