@@ -1,3 +1,6 @@
+use inkwell::values::IntValue;
+
+use crate::emitter::emitter::Emitter;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::unary::UnaryNode;
 use crate::parser::node::expression::ExpressionNode;
@@ -17,6 +20,12 @@ impl DirectDeclareNode {
                 _ => DirectDeclareNode::Variable(VariableDeclareNode::new(tokens)),
             },
             None => panic!(),
+        }
+    }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        match self {
+            DirectDeclareNode::Variable(node) => node.emit(emitter),
+            DirectDeclareNode::Array(node) => node.emit(emitter),
         }
     }
 }
@@ -53,30 +62,66 @@ impl VariableDeclareNode {
             None => panic!(),
         }
     }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        match self.init_expression {
+            Some(expression) => {
+                let identifier = self.identifier;
+                let alloca = emitter
+                    .builder
+                    .build_alloca(emitter.context.i32_type(), &identifier);
+                emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                expression.emit(emitter)
+            }
+            None => {
+                let identifier = self.identifier;
+                let alloca = emitter
+                    .builder
+                    .build_alloca(emitter.context.i32_type(), &identifier);
+                emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                emitter.context.i32_type().const_int(0, false)
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct ArrayDeclareNode {
     pub identifier: String,
-    pub init_size: u32,
+    pub init_sizes: Vec<u32>,
 }
 impl ArrayDeclareNode {
     fn new(tokens: &mut Tokens) -> ArrayDeclareNode {
         let _variable_type = tokens.consume_type().expect("type");
         let identifier = tokens.consume_identifier().expect("identifier");
-        tokens.consume_square_s().expect("[");
-        let size_node = ExpressionNode::new(tokens);
-        let init_size = match size_node {
-            ExpressionNode::Unary(node) => match node {
-                UnaryNode::Primary(node) => node.get_number_u64() as u32,
+        let mut init_sizes = Vec::new();
+        while let Some(Token::SquareS) = tokens.peek(0) {
+            tokens.consume_square_s().expect("[");
+            let size_node = ExpressionNode::new(tokens);
+            let init_size = match size_node {
+                ExpressionNode::Unary(node) => match node {
+                    UnaryNode::Primary(node) => node.get_number_u64() as u32,
+                    _ => panic!(),
+                },
                 _ => panic!(),
-            },
-            _ => panic!(),
-        };
-        tokens.consume_square_e().expect("]");
+            };
+            init_sizes.push(init_size);
+            tokens.consume_square_e().expect("]");
+        }
         ArrayDeclareNode {
             identifier,
-            init_size,
+            init_sizes,
         }
+    }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        let identifier = self.identifier;
+        let mut init_sizes = self.init_sizes;
+        let init_size = init_sizes.pop().expect("at least one");
+        let array_type = emitter.context.i32_type().array_type(init_size);
+        let alloca = match emitter.environment.get(&identifier) {
+            Some(_) => panic!(format!("redefinition of {}", identifier)),
+            None => emitter.builder.build_alloca(array_type, &identifier),
+        };
+        emitter.environment.update(identifier, alloca);
+        emitter.context.i32_type().const_int(0, false)
     }
 }

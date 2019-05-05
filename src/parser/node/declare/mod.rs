@@ -38,46 +38,9 @@ impl DeclareNode {
         }
     }
     pub fn emit(self, emitter: &mut Emitter) -> IntValue {
-        let const_zero = emitter.context.i32_type().const_int(0, false);
         match self {
-            DeclareNode::Direct(node) => match node {
-                DirectDeclareNode::Variable(node) => match node.init_expression {
-                    Some(expression) => {
-                        let identifier = node.identifier;
-                        let alloca = emitter
-                            .builder
-                            .build_alloca(emitter.context.i32_type(), &identifier);
-                        emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                        expression.emit(emitter)
-                    }
-                    None => {
-                        let identifier = node.identifier;
-                        let alloca = emitter
-                            .builder
-                            .build_alloca(emitter.context.i32_type(), &identifier);
-                        emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                        const_zero
-                    }
-                },
-                DirectDeclareNode::Array(node) => {
-                    let identifier = node.identifier;
-                    let array_type = emitter.context.i32_type().array_type(node.init_size);
-                    let alloca = match emitter.environment.get(&identifier) {
-                        Some(_) => panic!(format!("redefinition of {}", identifier)),
-                        None => emitter.builder.build_alloca(array_type, &identifier),
-                    };
-                    emitter.environment.update(identifier, alloca);
-                    const_zero
-                }
-            },
-            DeclareNode::Pointer(node) => {
-                let identifier = node.identifier;
-                let alloca = emitter
-                    .builder
-                    .build_alloca(emitter.context.i32_type(), &identifier);
-                emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
-                emitter.context.i32_type().const_int(0, false)
-            }
+            DeclareNode::Direct(node) => node.emit(emitter),
+            DeclareNode::Pointer(node) => node.emit(emitter),
         }
     }
 }

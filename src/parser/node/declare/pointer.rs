@@ -1,3 +1,6 @@
+use inkwell::values::IntValue;
+
+use crate::emitter::emitter::Emitter;
 use crate::lexer::token::{Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -16,5 +19,13 @@ impl PointerDeclareNode {
             None => panic!(),
         };
         PointerDeclareNode { identifier }
+    }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        let identifier = self.identifier;
+        let alloca = emitter
+            .builder
+            .build_alloca(emitter.context.i32_type(), &identifier);
+        emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
+        emitter.context.i32_type().const_int(0, false)
     }
 }
