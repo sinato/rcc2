@@ -1,7 +1,7 @@
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::{IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 use std::path;
 
@@ -9,7 +9,8 @@ use crate::emitter::environment::Environment;
 use crate::lexer::token::Token;
 use crate::parser::node::declare::{DeclareNode, DirectDeclareNode};
 use crate::parser::node::expression::{
-    ArrayNode, BinaryNode, ExpBaseNode, ExpressionNode, PrefixNode, PrimaryNode, UnaryNode,
+    ArrayNode, BinaryNode, ExpBaseNode, ExpressionNode, FunctionCallNode, PrefixNode, PrimaryNode,
+    SuffixNode, UnaryNode,
 };
 use crate::parser::node::statement::{ReturnNode, StatementNode};
 use crate::parser::node::{FunctionNode, Node, TopLevelDeclareNode};
@@ -39,18 +40,20 @@ impl Emitter {
         let mut declares = node.declares;
         declares.reverse();
         while let Some(declare) = declares.pop() {
-            self.emit_declare(declare)
+            self.emit_top_level_declare(declare)
         }
     }
-    pub fn emit_declare(&mut self, node: TopLevelDeclareNode) {
+    pub fn emit_top_level_declare(&mut self, node: TopLevelDeclareNode) {
         match node {
             TopLevelDeclareNode::Function(node) => self.emit_function(node),
         }
     }
     pub fn emit_function(&mut self, node: FunctionNode) {
-        let function =
-            self.module
-                .add_function("main", self.context.i32_type().fn_type(&[], false), None);
+        let function = self.module.add_function(
+            &node.identifier,
+            self.context.i32_type().fn_type(&[], false),
+            None,
+        );
         let basic_block = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&basic_block);
         let mut statements = node.statements.clone();
@@ -63,12 +66,12 @@ impl Emitter {
     }
     pub fn emit_statement(&mut self, node: StatementNode) -> IntValue {
         match node {
-            StatementNode::Expression(node) => self.emit_expression(node),
+            StatementNode::Declare(node) => self.emit_declare(node),
             StatementNode::Return(node) => self.emit_return(node),
-            StatementNode::Declare(node) => self.emit_variable(node),
+            StatementNode::Expression(node) => self.emit_expression(node),
         }
     }
-    pub fn emit_variable(&mut self, node: DeclareNode) -> IntValue {
+    pub fn emit_declare(&mut self, node: DeclareNode) -> IntValue {
         let const_zero = self.context.i32_type().const_int(0, false);
         match node {
             DeclareNode::Direct(node) => match node {
@@ -124,7 +127,7 @@ impl Emitter {
             ExpBaseNode::Unary(node) => match node {
                 UnaryNode::Primary(node) => self.emit_primary(node),
                 UnaryNode::Prefix(node) => self.emit_prefix(node),
-                UnaryNode::Array(node) => self.emit_array(node),
+                UnaryNode::Suffix(node) => self.emit_suffix(node),
             },
             ExpBaseNode::Binary(node) => self.emit_binary(node),
         }
@@ -145,23 +148,28 @@ impl Emitter {
                                     None => panic!(),
                                 }
                             }
-                            UnaryNode::Array(node) => {
-                                let identifier = node.identifier;
-                                let array_alloca = match self.environment.get(&identifier) {
-                                    Some(alloca) => alloca,
-                                    None => panic!(),
-                                };
-                                let const_zero: IntValue =
-                                    self.context.i32_type().const_int(0, false);
-                                let indexer: IntValue = self.emit_exp_base(*node.indexer);
-                                unsafe {
-                                    self.builder.build_gep(
-                                        array_alloca,
-                                        &[const_zero, indexer],
-                                        "insert",
-                                    )
+                            UnaryNode::Suffix(node) => match node {
+                                SuffixNode::Array(node) => {
+                                    let identifier = node.identifier;
+                                    let array_alloca = match self.environment.get(&identifier) {
+                                        Some(alloca) => alloca,
+                                        None => panic!(),
+                                    };
+                                    let const_zero: IntValue =
+                                        self.context.i32_type().const_int(0, false);
+                                    let indexer: IntValue = self.emit_exp_base(*node.indexer);
+                                    unsafe {
+                                        self.builder.build_gep(
+                                            array_alloca,
+                                            &[const_zero, indexer],
+                                            "insert",
+                                        )
+                                    }
                                 }
-                            }
+                                SuffixNode::FunctionCall(_node) => {
+                                    panic!("need to impl!!!!!!!!!!!!")
+                                }
+                            },
                             _ => panic!(),
                         },
                         _ => panic!(),
@@ -242,6 +250,12 @@ impl Emitter {
             _ => panic!(),
         }
     }
+    fn emit_suffix(&self, node: SuffixNode) -> IntValue {
+        match node {
+            SuffixNode::Array(node) => self.emit_array(node),
+            SuffixNode::FunctionCall(node) => self.emit_function_call(node),
+        }
+    }
     fn emit_array(&self, node: ArrayNode) -> IntValue {
         let identifier = node.identifier;
         let array_alloca = match self.environment.get(&identifier) {
@@ -259,6 +273,25 @@ impl Emitter {
         };
         self.builder
             .build_load(array_element_alloca, &identifier)
+            .into_int_value()
+    }
+    fn emit_function_call(&self, node: FunctionCallNode) -> IntValue {
+        let identifier = node.identifier;
+        let fn_value = match self.module.get_function(&identifier) {
+            Some(function) => function,
+            None => panic!(format!("undefined reference to {:?}", identifier)),
+        };
+        let parameters: Vec<BasicValueEnum> = node
+            .parameters
+            .into_iter()
+            .map(|val| self.emit_exp_base(*val))
+            .map(|val| val.into())
+            .collect();
+        let func_call_site = self.builder.build_call(fn_value, &parameters, "call");
+        func_call_site
+            .try_as_basic_value()
+            .left()
+            .unwrap()
             .into_int_value()
     }
 }

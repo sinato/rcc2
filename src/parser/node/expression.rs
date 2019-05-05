@@ -7,7 +7,7 @@ pub struct ExpressionNode {
 impl ExpressionNode {
     pub fn new(tokens: &mut Tokens) -> ExpressionNode {
         let expression = ExpBaseNode::new(tokens);
-        tokens.consume_semi().expect("semi");
+        tokens.consume_semi().expect("ExpressionNode");
         ExpressionNode { expression }
     }
 }
@@ -27,7 +27,7 @@ impl ExpBaseNode {
 pub enum UnaryNode {
     Primary(PrimaryNode),
     Prefix(PrefixNode),
-    Array(ArrayNode),
+    Suffix(SuffixNode),
 }
 impl UnaryNode {
     fn new(tokens: &mut Tokens) -> UnaryNode {
@@ -43,7 +43,9 @@ impl UnaryNode {
         }
     }
     fn new_with_prefix(tokens: &mut Tokens) -> UnaryNode {
-        let (op, _property) = tokens.consume_operator().expect("operator");
+        let (op, _property) = tokens
+            .consume_operator()
+            .expect("UnaryNode, new_with_prefix");
         match op.as_ref() {
             "*" | "&" => UnaryNode::Prefix(PrefixNode {
                 op,
@@ -53,17 +55,12 @@ impl UnaryNode {
         }
     }
     fn new_with_suffix(tokens: &mut Tokens) -> UnaryNode {
+        let msg = "UnaryNode, new_with_suffix";
         match tokens.peek(1) {
             Some(token) => match token {
-                Token::SquareS => {
-                    let identifier = tokens.consume_identifier().expect("identifier");
-                    tokens.consume_square_s().expect("[");
-                    let indexer = ExpBaseNode::new(tokens);
-                    tokens.consume_square_e().expect("]");
-                    UnaryNode::Array(ArrayNode {
-                        identifier,
-                        indexer: Box::new(indexer),
-                    })
+                Token::SquareS => UnaryNode::Suffix(SuffixNode::Array(ArrayNode::new(tokens))),
+                Token::ParenS => {
+                    UnaryNode::Suffix(SuffixNode::FunctionCall(FunctionCallNode::new(tokens)))
                 }
                 _ => UnaryNode::Primary(PrimaryNode::new(tokens)),
             },
@@ -79,9 +76,47 @@ pub struct PrefixNode {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum SuffixNode {
+    Array(ArrayNode),
+    FunctionCall(FunctionCallNode),
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct ArrayNode {
     pub identifier: String,
     pub indexer: Box<ExpBaseNode>,
+}
+impl ArrayNode {
+    fn new(tokens: &mut Tokens) -> ArrayNode {
+        let msg = "ArrayNode";
+        let identifier = tokens.consume_identifier().expect(msg);
+        tokens.consume_square_s().expect(msg);
+        let indexer = ExpBaseNode::new(tokens);
+        tokens.consume_square_e().expect(msg);
+        ArrayNode {
+            identifier,
+            indexer: Box::new(indexer),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct FunctionCallNode {
+    pub identifier: String,
+    pub parameters: Vec<Box<ExpBaseNode>>,
+}
+impl FunctionCallNode {
+    fn new(tokens: &mut Tokens) -> FunctionCallNode {
+        let msg = "FunctionCallNode";
+        let identifier = tokens.consume_identifier().expect(msg);
+        tokens.pop(); //consume parenS
+        let parameters = vec![];
+        tokens.pop(); //consume parenE
+        FunctionCallNode {
+            identifier,
+            parameters,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -141,7 +176,9 @@ impl BinaryNode {
                     if root_precedence < min_precedence {
                         break;
                     }
-                    let (op, property) = tokens.consume_operator().expect("operator");
+                    let (op, property) = tokens
+                        .consume_operator()
+                        .expect("BinaryNode, binary_expression");
                     let op = Token::Op(op, property);
                     let mut rhs = ExpBaseNode::new(tokens);
                     while let Some(Token::Op(_, property2)) = tokens.peek(0) {

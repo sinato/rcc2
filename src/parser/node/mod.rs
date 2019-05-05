@@ -12,8 +12,11 @@ pub struct Node {
 }
 impl Node {
     pub fn new(tokens: &mut Tokens) -> Node {
+        // TODO: support this case -> `func() {}` (not `int func() {}`)
         let mut declares: Vec<TopLevelDeclareNode> = Vec::new();
-        declares.push(TopLevelDeclareNode::new(tokens));
+        while let Some(Token::Type(_)) = tokens.peek(0) {
+            declares.push(TopLevelDeclareNode::new(tokens));
+        }
         Node { declares }
     }
 }
@@ -30,8 +33,8 @@ impl TopLevelDeclareNode {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionNode {
-    identifier: String,
-    arguments: Vec<ExpBaseNode>, // TODO: change to Vec<declare>
+    pub identifier: String,
+    pub arguments: Vec<ExpBaseNode>,
     pub statements: Vec<StatementNode>,
 }
 impl FunctionNode {

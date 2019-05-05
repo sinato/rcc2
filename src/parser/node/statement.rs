@@ -27,9 +27,10 @@ pub struct ReturnNode {
 }
 impl ReturnNode {
     fn new(tokens: &mut Tokens) -> ReturnNode {
-        tokens.consume_return().expect("return");
+        let msg = "ReturnNode";
+        tokens.consume_return().expect(msg);
         let expression = ExpBaseNode::new(tokens);
-        tokens.consume_semi().expect(";");
+        tokens.consume_semi().expect(msg);
         ReturnNode { expression }
     }
 }

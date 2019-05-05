@@ -55,6 +55,12 @@ fn test_division() {
 }
 
 #[test]
+fn test_function_call() {
+    let code = get_code("test_function_call.c");
+    run(&code, "10")
+}
+
+#[test]
 fn test_multi_statement() {
     let code = get_code("test_multi_statements.c");
     run(&code, "23")
