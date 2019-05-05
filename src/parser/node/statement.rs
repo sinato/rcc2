@@ -6,6 +6,33 @@ use crate::parser::node::declare::DeclareNode;
 use crate::parser::node::expression::ExpressionNode;
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct StatementsNode {
+    pub statements: Vec<StatementNode>,
+}
+impl StatementsNode {
+    pub fn new(tokens: &mut Tokens) -> StatementsNode {
+        let mut statements: Vec<StatementNode> = Vec::new();
+        while let Some(token) = tokens.peek(0) {
+            match token {
+                Token::BlockE => break,
+                _ => {
+                    let statement = StatementNode::new(tokens);
+                    statements.push(statement);
+                }
+            }
+        }
+        StatementsNode { statements }
+    }
+    pub fn emit(self, emitter: &mut Emitter) {
+        let mut statements = self.statements.clone();
+        statements.reverse();
+        while let Some(statement) = statements.pop() {
+            statement.emit(emitter);
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum StatementNode {
     Declare(DeclareStatementNode),
     Expression(ExpressionStatementNode),
