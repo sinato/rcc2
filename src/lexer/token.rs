@@ -20,6 +20,7 @@ pub enum Token {
     SquareS,
     SquareE,
     Semi,
+    Comma,
     Return,
     Num(String),
     Op(String, Property),
@@ -68,6 +69,34 @@ impl Tokens {
             return Ok(Token::Semi);
         }
         return Err("Token::Semi not found".to_string());
+    }
+    pub fn consume_block_s(&mut self) -> Result<Token, String> {
+        if let Some(Token::BlockS) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::BlockS);
+        }
+        return Err("Token::BlockS not found".to_string());
+    }
+    pub fn consume_block_e(&mut self) -> Result<Token, String> {
+        if let Some(Token::BlockE) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::BlockE);
+        }
+        return Err("Token::BlockE not found".to_string());
+    }
+    pub fn consume_paren_s(&mut self) -> Result<Token, String> {
+        if let Some(Token::ParenS) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::ParenS);
+        }
+        return Err("Token::ParenS not found".to_string());
+    }
+    pub fn consume_paren_e(&mut self) -> Result<Token, String> {
+        if let Some(Token::ParenE) = self.peek(0) {
+            self.pop(); // consume
+            return Ok(Token::ParenE);
+        }
+        return Err("Token::ParenE not found".to_string());
     }
     pub fn consume_square_s(&mut self) -> Result<Token, String> {
         if let Some(Token::SquareS) = self.peek(0) {

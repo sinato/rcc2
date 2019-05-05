@@ -1,24 +1,12 @@
 use crate::lexer::token::{Associativity, Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ExpressionNode {
-    pub expression: ExpBaseNode,
-}
-impl ExpressionNode {
-    pub fn new(tokens: &mut Tokens) -> ExpressionNode {
-        let expression = ExpBaseNode::new(tokens);
-        tokens.consume_semi().expect("ExpressionNode");
-        ExpressionNode { expression }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ExpBaseNode {
+pub enum ExpressionNode {
     Unary(UnaryNode),
     Binary(BinaryNode),
 }
-impl ExpBaseNode {
-    pub fn new(tokens: &mut Tokens) -> ExpBaseNode {
+impl ExpressionNode {
+    pub fn new(tokens: &mut Tokens) -> ExpressionNode {
         BinaryNode::new(tokens)
     }
 }
@@ -55,7 +43,6 @@ impl UnaryNode {
         }
     }
     fn new_with_suffix(tokens: &mut Tokens) -> UnaryNode {
-        let msg = "UnaryNode, new_with_suffix";
         match tokens.peek(1) {
             Some(token) => match token {
                 Token::SquareS => UnaryNode::Suffix(SuffixNode::Array(ArrayNode::new(tokens))),
@@ -84,14 +71,14 @@ pub enum SuffixNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct ArrayNode {
     pub identifier: String,
-    pub indexer: Box<ExpBaseNode>,
+    pub indexer: Box<ExpressionNode>,
 }
 impl ArrayNode {
     fn new(tokens: &mut Tokens) -> ArrayNode {
         let msg = "ArrayNode";
         let identifier = tokens.consume_identifier().expect(msg);
         tokens.consume_square_s().expect(msg);
-        let indexer = ExpBaseNode::new(tokens);
+        let indexer = ExpressionNode::new(tokens);
         tokens.consume_square_e().expect(msg);
         ArrayNode {
             identifier,
@@ -103,15 +90,27 @@ impl ArrayNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCallNode {
     pub identifier: String,
-    pub parameters: Vec<Box<ExpBaseNode>>,
+    pub parameters: Vec<ExpressionNode>,
 }
 impl FunctionCallNode {
     fn new(tokens: &mut Tokens) -> FunctionCallNode {
         let msg = "FunctionCallNode";
         let identifier = tokens.consume_identifier().expect(msg);
-        tokens.pop(); //consume parenS
-        let parameters = vec![];
-        tokens.pop(); //consume parenE
+        tokens.consume_paren_s().expect(msg);
+        let mut parameters = vec![];
+        while let Some(token) = tokens.peek(0) {
+            match token {
+                Token::ParenE => break,
+                _ => {
+                    let parameter = ExpressionNode::new(tokens);
+                    parameters.push(parameter);
+                    if let Some(Token::Comma) = tokens.peek(0) {
+                        tokens.pop();
+                    }
+                }
+            }
+        }
+        tokens.consume_paren_e().expect(msg);
         FunctionCallNode {
             identifier,
             parameters,
@@ -155,19 +154,19 @@ impl PrimaryNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct BinaryNode {
     pub op: Token,
-    pub lhs: Box<ExpBaseNode>,
-    pub rhs: Box<ExpBaseNode>,
+    pub lhs: Box<ExpressionNode>,
+    pub rhs: Box<ExpressionNode>,
 }
 impl BinaryNode {
-    pub fn new(tokens: &mut Tokens) -> ExpBaseNode {
-        let lhs = ExpBaseNode::Unary(UnaryNode::new(tokens));
+    pub fn new(tokens: &mut Tokens) -> ExpressionNode {
+        let lhs = ExpressionNode::Unary(UnaryNode::new(tokens));
         BinaryNode::binary_expression(lhs, tokens, 0)
     }
     fn binary_expression(
-        mut lhs: ExpBaseNode,
+        mut lhs: ExpressionNode,
         tokens: &mut Tokens,
         min_precedence: u32,
-    ) -> ExpBaseNode {
+    ) -> ExpressionNode {
         while let Some(token) = tokens.peek(0) {
             match token {
                 Token::Op(_op, property) => {
@@ -180,7 +179,7 @@ impl BinaryNode {
                         .consume_operator()
                         .expect("BinaryNode, binary_expression");
                     let op = Token::Op(op, property);
-                    let mut rhs = ExpBaseNode::new(tokens);
+                    let mut rhs = ExpressionNode::new(tokens);
                     while let Some(Token::Op(_, property2)) = tokens.peek(0) {
                         let (precedence, _associativity) =
                             (property2.precedence, property2.associativity);
@@ -198,7 +197,7 @@ impl BinaryNode {
                         }
                         rhs = BinaryNode::binary_expression(rhs, tokens, precedence)
                     }
-                    lhs = ExpBaseNode::Binary(BinaryNode {
+                    lhs = ExpressionNode::Binary(BinaryNode {
                         op,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),

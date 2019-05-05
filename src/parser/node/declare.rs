@@ -1,6 +1,5 @@
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::{ExpressionNode, UnaryNode};
-use crate::parser::node::ExpBaseNode;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum DeclareNode {
@@ -22,6 +21,15 @@ impl DeclareNode {
             None => panic!(),
         }
     }
+    pub fn get_identifier(&self) -> String {
+        match self.clone() {
+            DeclareNode::Direct(node) => match node {
+                DirectDeclareNode::Variable(node) => node.identifier,
+                DirectDeclareNode::Array(node) => node.identifier,
+            },
+            DeclareNode::Pointer(node) => node.identifier,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -39,7 +47,6 @@ impl PointerDeclareNode {
             },
             None => panic!(),
         };
-        tokens.consume_semi().expect("semi");
         PointerDeclareNode { identifier }
     }
 }
@@ -84,15 +91,13 @@ impl VariableDeclareNode {
                     }
                     _ => panic!(),
                 },
-                Token::Semi => {
+                _ => {
                     let identifier = tokens.consume_identifier().expect("identifier");
-                    tokens.consume_semi().expect("semi");
                     VariableDeclareNode {
                         identifier,
                         init_expression: None,
                     }
                 }
-                _ => panic!(),
             },
             None => panic!(),
         }
@@ -109,16 +114,15 @@ impl ArrayDeclareNode {
         let _variable_type = tokens.consume_type().expect("type");
         let identifier = tokens.consume_identifier().expect("identifier");
         tokens.consume_square_s().expect("[");
-        let size_node = ExpBaseNode::new(tokens);
+        let size_node = ExpressionNode::new(tokens);
         let init_size = match size_node {
-            ExpBaseNode::Unary(node) => match node {
+            ExpressionNode::Unary(node) => match node {
                 UnaryNode::Primary(node) => node.get_number_u64() as u32,
                 _ => panic!(),
             },
             _ => panic!(),
         };
         tokens.consume_square_e().expect("]");
-        tokens.consume_semi().expect("semi");
         ArrayDeclareNode {
             identifier,
             init_size,

@@ -38,6 +38,7 @@ impl Lexer {
             ("SQUARES", r"\["),
             ("SQUAREE", r"\]"),
             ("SEMI", r";"),
+            ("COMMA", r","),
             ("RETURN", r"return"),
             ("NUM", r"(\d+(\.\d)*)"),
             ("OP", r"(\+|-|\*|/|=|,|&)"),
@@ -71,6 +72,7 @@ impl Lexer {
                 "SQUARES" => Token::SquareS,
                 "SQUAREE" => Token::SquareE,
                 "SEMI" => Token::Semi,
+                "COMMA" => Token::Comma,
                 "RETURN" => Token::Return,
                 "NUM" => Token::Num(val),
                 "OP" => {

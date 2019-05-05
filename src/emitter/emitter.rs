@@ -1,6 +1,7 @@
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
+use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 use std::path;
@@ -9,10 +10,12 @@ use crate::emitter::environment::Environment;
 use crate::lexer::token::Token;
 use crate::parser::node::declare::{DeclareNode, DirectDeclareNode};
 use crate::parser::node::expression::{
-    ArrayNode, BinaryNode, ExpBaseNode, ExpressionNode, FunctionCallNode, PrefixNode, PrimaryNode,
-    SuffixNode, UnaryNode,
+    ArrayNode, BinaryNode, ExpressionNode, FunctionCallNode, PrefixNode, PrimaryNode, SuffixNode,
+    UnaryNode,
 };
-use crate::parser::node::statement::{ReturnNode, StatementNode};
+use crate::parser::node::statement::{
+    DeclareStatementNode, ExpressionStatementNode, ReturnStatementNode, StatementNode,
+};
 use crate::parser::node::{FunctionNode, Node, TopLevelDeclareNode};
 
 pub struct Emitter {
@@ -49,29 +52,52 @@ impl Emitter {
         }
     }
     pub fn emit_function(&mut self, node: FunctionNode) {
+        // prepare
+        let mut arguments = node.arguments;
+        arguments.reverse();
+        let mut statements = node.statements.clone();
+        statements.reverse();
+
+        let parameters: Vec<BasicTypeEnum> = arguments
+            .iter()
+            .map(|_| self.context.i32_type().into())
+            .collect();
         let function = self.module.add_function(
             &node.identifier,
-            self.context.i32_type().fn_type(&[], false),
+            self.context.i32_type().fn_type(&parameters, false),
             None,
         );
         let basic_block = self.context.append_basic_block(&function, "entry");
         self.builder.position_at_end(&basic_block);
-        let mut statements = node.statements.clone();
-        statements.reverse();
-        let mut ret = self.context.i32_type().const_int(0, false);
-        while let Some(statement) = statements.pop() {
-            ret = self.emit_statement(statement);
+
+        for (i, parameter_declare) in arguments.into_iter().enumerate() {
+            let parameter_value = match function.get_nth_param(i as u32) {
+                Some(val) => val.into_int_value(),
+                None => panic!(),
+            };
+            let parameter_alloca = self
+                .builder
+                .build_alloca(self.context.i32_type(), &parameter_declare.get_identifier());
+            self.builder.build_store(parameter_alloca, parameter_value);
+            self.environment
+                .update(parameter_declare.get_identifier(), parameter_alloca);
         }
-        self.builder.build_return(Some(&ret));
+
+        while let Some(statement) = statements.pop() {
+            self.emit_statement(statement);
+        }
     }
     pub fn emit_statement(&mut self, node: StatementNode) -> IntValue {
         match node {
-            StatementNode::Declare(node) => self.emit_declare(node),
+            StatementNode::Declare(node) => self.emit_declare_statement(node),
             StatementNode::Return(node) => self.emit_return(node),
-            StatementNode::Expression(node) => self.emit_expression(node),
+            StatementNode::Expression(node) => self.emit_expression_statement(node),
         }
     }
-    pub fn emit_declare(&mut self, node: DeclareNode) -> IntValue {
+    fn emit_declare_statement(&mut self, node: DeclareStatementNode) -> IntValue {
+        self.emit_declare(node.declare)
+    }
+    fn emit_declare(&mut self, node: DeclareNode) -> IntValue {
         let const_zero = self.context.i32_type().const_int(0, false);
         match node {
             DeclareNode::Direct(node) => match node {
@@ -114,22 +140,24 @@ impl Emitter {
             }
         }
     }
-    pub fn emit_return(&self, node: ReturnNode) -> IntValue {
-        self.emit_exp_base(node.expression)
+    pub fn emit_return(&self, node: ReturnStatementNode) -> IntValue {
+        let ret = self.emit_expression(node.expression);
+        self.builder.build_return(Some(&ret));
+        self.context.i32_type().const_int(0, false)
+    }
+
+    pub fn emit_expression_statement(&self, node: ExpressionStatementNode) -> IntValue {
+        self.emit_expression(node.expression)
     }
 
     pub fn emit_expression(&self, node: ExpressionNode) -> IntValue {
-        self.emit_exp_base(node.expression)
-    }
-
-    pub fn emit_exp_base(&self, node: ExpBaseNode) -> IntValue {
         match node {
-            ExpBaseNode::Unary(node) => match node {
+            ExpressionNode::Unary(node) => match node {
                 UnaryNode::Primary(node) => self.emit_primary(node),
                 UnaryNode::Prefix(node) => self.emit_prefix(node),
                 UnaryNode::Suffix(node) => self.emit_suffix(node),
             },
-            ExpBaseNode::Binary(node) => self.emit_binary(node),
+            ExpressionNode::Binary(node) => self.emit_binary(node),
         }
     }
 
@@ -140,7 +168,7 @@ impl Emitter {
                 "=" => {
                     // lhs
                     let alloca: PointerValue = match *node.lhs {
-                        ExpBaseNode::Unary(node) => match node {
+                        ExpressionNode::Unary(node) => match node {
                             UnaryNode::Primary(node) => {
                                 let identifier = node.get_identifier();
                                 match self.environment.get(&identifier) {
@@ -157,7 +185,7 @@ impl Emitter {
                                     };
                                     let const_zero: IntValue =
                                         self.context.i32_type().const_int(0, false);
-                                    let indexer: IntValue = self.emit_exp_base(*node.indexer);
+                                    let indexer: IntValue = self.emit_expression(*node.indexer);
                                     unsafe {
                                         self.builder.build_gep(
                                             array_alloca,
@@ -175,13 +203,13 @@ impl Emitter {
                         _ => panic!(),
                     };
                     // rhs
-                    let val = self.emit_exp_base(*node.rhs);
+                    let val = self.emit_expression(*node.rhs);
                     self.builder.build_store(alloca, val);
                     self.context.i32_type().const_int(0, false)
                 }
                 _ => {
-                    let const_lhs = self.emit_exp_base(*node.lhs);
-                    let const_rhs = self.emit_exp_base(*node.rhs);
+                    let const_lhs = self.emit_expression(*node.lhs);
+                    let const_rhs = self.emit_expression(*node.rhs);
                     match op.as_ref() {
                         "+" => self.builder.build_int_add(const_lhs, const_rhs, "main"),
                         "-" => self.builder.build_int_sub(const_lhs, const_rhs, "main"),
@@ -266,7 +294,7 @@ impl Emitter {
             )),
         };
         let const_zero: IntValue = self.context.i32_type().const_int(0, false);
-        let indexer: IntValue = self.emit_exp_base(*node.indexer);
+        let indexer: IntValue = self.emit_expression(*node.indexer);
         let array_element_alloca = unsafe {
             self.builder
                 .build_gep(array_alloca, &[const_zero, indexer], "extracted_value")
@@ -284,7 +312,7 @@ impl Emitter {
         let parameters: Vec<BasicValueEnum> = node
             .parameters
             .into_iter()
-            .map(|val| self.emit_exp_base(*val))
+            .map(|val| self.emit_expression(val))
             .map(|val| val.into())
             .collect();
         let func_call_site = self.builder.build_call(fn_value, &parameters, "call");

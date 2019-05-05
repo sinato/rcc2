@@ -3,7 +3,7 @@ pub mod expression;
 pub mod statement;
 
 use crate::lexer::token::{Token, Tokens};
-use crate::parser::node::expression::ExpBaseNode;
+use crate::parser::node::declare::DeclareNode;
 use crate::parser::node::statement::StatementNode;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -34,17 +34,25 @@ impl TopLevelDeclareNode {
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionNode {
     pub identifier: String,
-    pub arguments: Vec<ExpBaseNode>,
+    pub arguments: Vec<DeclareNode>,
     pub statements: Vec<StatementNode>,
 }
 impl FunctionNode {
     fn new(tokens: &mut Tokens) -> FunctionNode {
+        let msg = "FunctionNode";
         let _function_type = tokens.consume_type().expect("type");
         let identifier = tokens.consume_identifier().expect("identifier");
-        tokens.pop(); // consume ParenS
-        let arguments = vec![];
-        tokens.pop(); // consume ParenE
-        tokens.pop(); // consume BlockS
+        tokens.consume_paren_s().expect(msg);
+        let mut arguments = vec![];
+        while let Some(Token::Type(_)) = tokens.peek(0) {
+            let argument = DeclareNode::new(tokens);
+            arguments.push(argument);
+            if let Some(Token::Comma) = tokens.peek(0) {
+                tokens.pop();
+            }
+        }
+        tokens.consume_paren_e().expect(msg);
+        tokens.consume_block_s().expect(msg);
         let mut statements: Vec<StatementNode> = Vec::new();
         loop {
             match tokens.peek(0) {
@@ -58,7 +66,7 @@ impl FunctionNode {
                 None => panic!(),
             }
         }
-        tokens.pop(); // consume BlockE
+        tokens.consume_block_e().expect(msg);
         FunctionNode {
             identifier,
             arguments,

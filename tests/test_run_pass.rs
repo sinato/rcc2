@@ -61,6 +61,12 @@ fn test_function_call() {
 }
 
 #[test]
+fn test_function_call2() {
+    let code = get_code("test_function_call2.c");
+    run(&code, "35")
+}
+
+#[test]
 fn test_multi_statement() {
     let code = get_code("test_multi_statements.c");
     run(&code, "23")
