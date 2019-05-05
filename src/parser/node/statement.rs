@@ -1,3 +1,6 @@
+use inkwell::values::IntValue;
+
+use crate::emitter::emitter::Emitter;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::declare::DeclareNode;
 use crate::parser::node::expression::ExpressionNode;
@@ -19,6 +22,13 @@ impl StatementNode {
             None => panic!(),
         }
     }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        match self {
+            StatementNode::Declare(node) => node.emit(emitter),
+            StatementNode::Return(node) => node.emit(emitter),
+            StatementNode::Expression(node) => node.emit(emitter),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -31,6 +41,9 @@ impl DeclareStatementNode {
         let declare = DeclareNode::new(tokens);
         tokens.consume_semi().expect(msg);
         DeclareStatementNode { declare }
+    }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        self.declare.emit(emitter)
     }
 }
 
@@ -45,6 +58,9 @@ impl ExpressionStatementNode {
         tokens.consume_semi().expect(msg);
         ExpressionStatementNode { expression }
     }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        self.expression.emit(emitter)
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -58,5 +74,10 @@ impl ReturnStatementNode {
         let expression = ExpressionNode::new(tokens);
         tokens.consume_semi().expect(msg);
         ReturnStatementNode { expression }
+    }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        let ret = self.expression.emit(emitter);
+        emitter.builder.build_return(Some(&ret));
+        emitter.context.i32_type().const_int(0, false)
     }
 }
