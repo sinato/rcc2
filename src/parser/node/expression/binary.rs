@@ -79,23 +79,7 @@ impl BinaryNode {
                                 }
                             }
                             UnaryNode::Suffix(node) => match node {
-                                SuffixNode::Array(node) => {
-                                    let identifier = node.identifier;
-                                    let array_alloca = match emitter.environment.get(&identifier) {
-                                        Some(alloca) => alloca,
-                                        None => panic!(),
-                                    };
-                                    let const_zero: IntValue =
-                                        emitter.context.i32_type().const_int(0, false);
-                                    let indexer: IntValue = node.indexer.emit(emitter);
-                                    unsafe {
-                                        emitter.builder.build_gep(
-                                            array_alloca,
-                                            &[const_zero, indexer],
-                                            "insert",
-                                        )
-                                    }
-                                }
+                                SuffixNode::Array(node) => node.array_element.emit_pointer(emitter),
                                 SuffixNode::FunctionCall(_node) => {
                                     panic!("need to impl!!!!!!!!!!!!")
                                 }

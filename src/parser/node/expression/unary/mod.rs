@@ -8,7 +8,9 @@ use crate::emitter::emitter::Emitter;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::unary::prefix::PrefixNode;
 use crate::parser::node::expression::unary::primary::PrimaryNode;
-use crate::parser::node::expression::unary::suffix::{ArrayNode, FunctionCallNode, SuffixNode};
+use crate::parser::node::expression::unary::suffix::{
+    ArrayAccessNode, FunctionCallNode, SuffixNode,
+};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum UnaryNode {
@@ -44,7 +46,9 @@ impl UnaryNode {
     fn new_with_suffix(tokens: &mut Tokens) -> UnaryNode {
         match tokens.peek(1) {
             Some(token) => match token {
-                Token::SquareS => UnaryNode::Suffix(SuffixNode::Array(ArrayNode::new(tokens))),
+                Token::SquareS => {
+                    UnaryNode::Suffix(SuffixNode::Array(ArrayAccessNode::new(tokens)))
+                }
                 Token::ParenS => {
                     UnaryNode::Suffix(SuffixNode::FunctionCall(FunctionCallNode::new(tokens)))
                 }

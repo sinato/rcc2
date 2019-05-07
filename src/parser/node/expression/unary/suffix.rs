@@ -1,4 +1,4 @@
-use inkwell::values::{BasicValueEnum, IntValue};
+use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 use crate::emitter::emitter::Emitter;
 use crate::lexer::token::{Token, Tokens};
@@ -6,7 +6,7 @@ use crate::parser::node::expression::ExpressionNode;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum SuffixNode {
-    Array(ArrayNode),
+    Array(ArrayAccessNode),
     FunctionCall(FunctionCallNode),
 }
 impl SuffixNode {
@@ -17,25 +17,28 @@ impl SuffixNode {
         }
     }
 }
-
 #[derive(Debug, PartialEq, Clone)]
-pub struct ArrayNode {
+pub struct ArrayElementNode {
     pub identifier: String,
-    pub indexer: Box<ExpressionNode>,
+    pub indexer_nodes: Vec<Box<ExpressionNode>>,
 }
-impl ArrayNode {
-    pub fn new(tokens: &mut Tokens) -> ArrayNode {
+impl ArrayElementNode {
+    pub fn new(tokens: &mut Tokens) -> ArrayElementNode {
         let msg = "ArrayNode";
         let identifier = tokens.consume_identifier().expect(msg);
-        tokens.consume_square_s().expect(msg);
-        let indexer = ExpressionNode::new(tokens);
-        tokens.consume_square_e().expect(msg);
-        ArrayNode {
+        let mut indexer_nodes = Vec::new();
+        while let Some(Token::SquareS) = tokens.peek(0) {
+            tokens.consume_square_s().expect(msg);
+            let indexer_node = Box::new(ExpressionNode::new(tokens));
+            indexer_nodes.push(indexer_node);
+            tokens.consume_square_e().expect(msg);
+        }
+        ArrayElementNode {
             identifier,
-            indexer: Box::new(indexer),
+            indexer_nodes,
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit_pointer(self, emitter: &mut Emitter) -> PointerValue {
         let identifier = self.identifier;
         let array_alloca = match emitter.environment.get(&identifier) {
             Some(alloca) => alloca,
@@ -45,15 +48,46 @@ impl ArrayNode {
             )),
         };
         let const_zero: IntValue = emitter.context.i32_type().const_int(0, false);
-        let indexer: IntValue = self.indexer.emit(emitter);
-        let array_element_alloca = unsafe {
-            emitter
-                .builder
-                .build_gep(array_alloca, &[const_zero, indexer], "extracted_value")
+
+        let mut indexer_nodes = self.indexer_nodes;
+        indexer_nodes.reverse();
+        let mut element_pointer = match indexer_nodes.pop() {
+            Some(indexer_node) => {
+                let indexer = indexer_node.emit(emitter);
+                unsafe {
+                    emitter
+                        .builder
+                        .build_gep(array_alloca, &[const_zero, indexer], "first_element")
+                }
+            }
+            None => panic!(),
         };
+        while let Some(indexer_node) = indexer_nodes.pop() {
+            let indexer = indexer_node.emit(emitter);
+            element_pointer = unsafe {
+                emitter
+                    .builder
+                    .build_gep(element_pointer, &[const_zero, indexer], "element")
+            }
+        }
+        element_pointer
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ArrayAccessNode {
+    pub array_element: ArrayElementNode,
+}
+impl ArrayAccessNode {
+    pub fn new(tokens: &mut Tokens) -> ArrayAccessNode {
+        let array_element = ArrayElementNode::new(tokens);
+        ArrayAccessNode { array_element }
+    }
+    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+        let array_element_alloca = self.array_element.emit_pointer(emitter);
         emitter
             .builder
-            .build_load(array_element_alloca, &identifier)
+            .build_load(array_element_alloca, "array_element")
             .into_int_value()
     }
 }

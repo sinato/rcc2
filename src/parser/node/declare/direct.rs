@@ -114,9 +114,17 @@ impl ArrayDeclareNode {
     }
     pub fn emit(self, emitter: &mut Emitter) -> IntValue {
         let identifier = self.identifier;
+
         let mut init_sizes = self.init_sizes;
-        let init_size = init_sizes.pop().expect("at least one");
-        let array_type = emitter.context.i32_type().array_type(init_size);
+        // init_sizes.reverse();
+        let mut array_type = match init_sizes.pop() {
+            Some(init_size) => emitter.context.i32_type().array_type(init_size),
+            None => panic!(),
+        };
+        while let Some(init_size) = init_sizes.pop() {
+            array_type = array_type.array_type(init_size);
+        }
+
         let alloca = match emitter.environment.get(&identifier) {
             Some(_) => panic!(format!("redefinition of {}", identifier)),
             None => emitter.builder.build_alloca(array_type, &identifier),

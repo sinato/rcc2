@@ -80,7 +80,7 @@ pub struct ExpressionStatementNode {
 }
 impl ExpressionStatementNode {
     fn new(tokens: &mut Tokens) -> ExpressionStatementNode {
-        let msg = "ExpressiontatementNode";
+        let msg = "ExpressionStatementNode";
         let expression = ExpressionNode::new(tokens);
         tokens.consume_semi().expect(msg);
         ExpressionStatementNode { expression }
