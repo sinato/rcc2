@@ -1,6 +1,7 @@
 use inkwell::values::IntValue;
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::{IntVariable, Variable};
 use crate::lexer::token::{Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -25,7 +26,8 @@ impl PointerDeclareNode {
         let alloca = emitter
             .builder
             .build_alloca(emitter.context.i32_type(), &identifier);
-        emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
+        let variable = Variable::Int(IntVariable{ name: identifier.clone(), pointer: alloca});
+        emitter.environment.update(identifier, variable); // TODO: impl detect redefinition
         emitter.context.i32_type().const_int(0, false)
     }
 }

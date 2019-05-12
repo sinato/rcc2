@@ -1,6 +1,7 @@
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::{Variable};
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::ExpressionNode;
 
@@ -41,7 +42,10 @@ impl ArrayElementNode {
     pub fn emit_pointer(self, emitter: &mut Emitter) -> PointerValue {
         let identifier = self.identifier;
         let array_alloca = match emitter.environment.get(&identifier) {
-            Some(alloca) => alloca,
+            Some(variable) => match variable {
+                Variable::Array(array_variable) => array_variable.pointer,
+                _ => panic!(),
+            },
             None => panic!(format!(
                 "error: use of undeclared identifier \'{}\'",
                 identifier

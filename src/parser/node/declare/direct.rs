@@ -1,6 +1,7 @@
 use inkwell::values::IntValue;
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::{IntVariable, ArrayVariable, Variable};
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::unary::UnaryNode;
 use crate::parser::node::expression::ExpressionNode;
@@ -69,7 +70,8 @@ impl VariableDeclareNode {
                 let alloca = emitter
                     .builder
                     .build_alloca(emitter.context.i32_type(), &identifier);
-                emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                let variable = Variable::Int(IntVariable{ name: identifier.clone(), pointer: alloca  });
+                emitter.environment.update(identifier, variable); // TODO: impl detect redefinition
                 expression.emit(emitter)
             }
             None => {
@@ -77,7 +79,8 @@ impl VariableDeclareNode {
                 let alloca = emitter
                     .builder
                     .build_alloca(emitter.context.i32_type(), &identifier);
-                emitter.environment.update(identifier, alloca); // TODO: impl detect redefinition
+                let variable = Variable::Int(IntVariable{ name: identifier.clone(), pointer: alloca  });
+                emitter.environment.update(identifier, variable); // TODO: impl detect redefinition
                 emitter.context.i32_type().const_int(0, false)
             }
         }
@@ -129,7 +132,8 @@ impl ArrayDeclareNode {
             Some(_) => panic!(format!("redefinition of {}", identifier)),
             None => emitter.builder.build_alloca(array_type, &identifier),
         };
-        emitter.environment.update(identifier, alloca);
+        let variable = Variable::Array(ArrayVariable{ name: identifier.clone(), pointer: alloca });
+        emitter.environment.update(identifier, variable);
         emitter.context.i32_type().const_int(0, false)
     }
 }

@@ -1,6 +1,7 @@
 use inkwell::values::IntValue;
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::Variable;
 use crate::parser::node::expression::unary::primary::PrimaryNode;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -14,7 +15,10 @@ impl PrefixNode {
             "*" => {
                 let identifier = self.val.get_identifier();
                 let alloca = match emitter.environment.get(&identifier) {
-                    Some(alloca) => alloca,
+                    Some(variable) => match variable {
+                        Variable::Int(int_variable) => int_variable.pointer,
+                        _ => panic!(),
+                    },
                     None => panic!(format!(
                         "error: use of undeclared identifier \'{}\'",
                         identifier
@@ -28,7 +32,10 @@ impl PrefixNode {
             "&" => {
                 let identifier = self.val.get_identifier();
                 let alloca = match emitter.environment.get(&identifier) {
-                    Some(alloca) => alloca,
+                    Some(variable) => match variable {
+                        Variable::Int(int_variable) => int_variable.pointer,
+                        _ => panic!(),
+                    },
                     None => panic!(format!(
                         "error: use of undeclared identifier \'{}\'",
                         identifier

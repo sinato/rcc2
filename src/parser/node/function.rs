@@ -1,6 +1,7 @@
 use inkwell::types::BasicTypeEnum;
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::{IntVariable, Variable};
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::declare::DeclareNode;
 use crate::parser::node::statement::StatementsNode;
@@ -57,16 +58,18 @@ impl FunctionNode {
                 Some(val) => val.into_int_value(),
                 None => panic!(),
             };
+            let identifier = parameter_declare.get_identifier();
             let parameter_alloca = emitter.builder.build_alloca(
                 emitter.context.i32_type(),
-                &parameter_declare.get_identifier(),
+                &identifier
             );
             emitter
                 .builder
                 .build_store(parameter_alloca, parameter_value);
+            let variable = Variable::Int(IntVariable{ name: identifier, pointer: parameter_alloca});
             emitter
                 .environment
-                .update(parameter_declare.get_identifier(), parameter_alloca);
+                .update(parameter_declare.get_identifier(), variable);
         }
 
         self.statements.emit(emitter);

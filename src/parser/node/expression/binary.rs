@@ -1,6 +1,7 @@
-use inkwell::values::{IntValue, PointerValue};
+use inkwell::values::IntValue;
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::Variable;
 use crate::lexer::token::{Associativity, Token, Tokens};
 use crate::parser::node::expression::unary::suffix::SuffixNode;
 use crate::parser::node::expression::unary::UnaryNode;
@@ -69,12 +70,16 @@ impl BinaryNode {
             Token::Op(op, _) => match op.as_ref() {
                 "=" => {
                     // lhs
-                    let alloca: PointerValue = match *self.lhs {
+                    let alloca = match *self.lhs {
                         ExpressionNode::Unary(node) => match node {
                             UnaryNode::Primary(node) => {
                                 let identifier = node.get_identifier();
                                 match emitter.environment.get(&identifier) {
-                                    Some(alloca) => alloca,
+                                    Some(variable) => match variable {
+                                        Variable::Int(int_variable) => int_variable.pointer,
+                                        Variable::Array(array_variable) => array_variable.pointer,
+                                        Variable::Null => panic!(),
+                                    }
                                     None => panic!(),
                                 }
                             }

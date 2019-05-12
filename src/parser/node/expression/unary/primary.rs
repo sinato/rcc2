@@ -1,6 +1,7 @@
 use inkwell::values::IntValue;
 
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::Variable;
 use crate::lexer::token::{Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -43,7 +44,10 @@ impl PrimaryNode {
             Token::Ide(_) => {
                 let identifier = self.get_identifier();
                 let alloca = match emitter.environment.get(&identifier) {
-                    Some(alloca) => alloca,
+                    Some(variable) => match variable {
+                        Variable::Int(int_variable) => int_variable.pointer,
+                        _ => panic!(),
+                    },
                     None => panic!(format!(
                         "error: use of undeclared identifier \'{}\'",
                         identifier
