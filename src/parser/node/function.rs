@@ -59,14 +59,16 @@ impl FunctionNode {
                 None => panic!(),
             };
             let identifier = parameter_declare.get_identifier();
-            let parameter_alloca = emitter.builder.build_alloca(
-                emitter.context.i32_type(),
-                &identifier
-            );
+            let parameter_alloca = emitter
+                .builder
+                .build_alloca(emitter.context.i32_type(), &identifier);
             emitter
                 .builder
                 .build_store(parameter_alloca, parameter_value);
-            let variable = Variable::Int(IntVariable{ name: identifier, pointer: parameter_alloca});
+            let variable = Variable::Int(IntVariable {
+                name: identifier,
+                pointer: parameter_alloca,
+            });
             emitter
                 .environment
                 .update(parameter_declare.get_identifier(), variable);

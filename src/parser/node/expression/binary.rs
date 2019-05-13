@@ -1,7 +1,5 @@
-use inkwell::values::IntValue;
-
 use crate::emitter::emitter::Emitter;
-use crate::emitter::environment::Variable;
+use crate::emitter::environment::{Value, Variable};
 use crate::lexer::token::{Associativity, Token, Tokens};
 use crate::parser::node::expression::unary::suffix::SuffixNode;
 use crate::parser::node::expression::unary::UnaryNode;
@@ -64,7 +62,7 @@ impl BinaryNode {
         }
         lhs
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         // define main function
         let ret = match self.op {
             Token::Op(op, _) => match op.as_ref() {
@@ -79,7 +77,7 @@ impl BinaryNode {
                                         Variable::Int(int_variable) => int_variable.pointer,
                                         Variable::Array(array_variable) => array_variable.pointer,
                                         Variable::Null => panic!(),
-                                    }
+                                    },
                                     None => panic!(),
                                 }
                             }
@@ -94,14 +92,25 @@ impl BinaryNode {
                         _ => panic!(),
                     };
                     // rhs
-                    let val = self.rhs.emit(emitter);
+                    let val = match self.rhs.emit(emitter).get_int() {
+                        Ok(value) => value,
+                        Err(msg) => panic!(msg),
+                    };
                     emitter.builder.build_store(alloca, val);
-                    emitter.context.i32_type().const_int(0, false)
+                    Value::Null
                 }
                 _ => {
                     let const_lhs = self.lhs.emit(emitter);
+                    let const_lhs = match const_lhs.get_int() {
+                        Ok(value) => value,
+                        Err(msg) => panic!(msg),
+                    };
                     let const_rhs = self.rhs.emit(emitter);
-                    match op.as_ref() {
+                    let const_rhs = match const_rhs.get_int() {
+                        Ok(value) => value,
+                        Err(msg) => panic!(msg),
+                    };
+                    let ret_int_val = match op.as_ref() {
                         "+" => emitter.builder.build_int_add(const_lhs, const_rhs, "main"),
                         "-" => emitter.builder.build_int_sub(const_lhs, const_rhs, "main"),
                         "*" => emitter.builder.build_int_mul(const_lhs, const_rhs, "main"),
@@ -109,7 +118,8 @@ impl BinaryNode {
                             .builder
                             .build_int_unsigned_div(const_lhs, const_rhs, "main"),
                         _ => panic!("Operator not implemented."),
-                    }
+                    };
+                    Value::Int(ret_int_val)
                 }
             },
             _ => panic!(),

@@ -1,7 +1,7 @@
-use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
+use inkwell::values::{BasicValueEnum, PointerValue};
 
 use crate::emitter::emitter::Emitter;
-use crate::emitter::environment::{Variable};
+use crate::emitter::environment::{Value, Variable};
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::ExpressionNode;
 
@@ -11,7 +11,7 @@ pub enum SuffixNode {
     FunctionCall(FunctionCallNode),
 }
 impl SuffixNode {
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         match self {
             SuffixNode::Array(node) => node.emit(emitter),
             SuffixNode::FunctionCall(node) => node.emit(emitter),
@@ -51,13 +51,16 @@ impl ArrayElementNode {
                 identifier
             )),
         };
-        let const_zero: IntValue = emitter.context.i32_type().const_int(0, false);
+        let const_zero = emitter.context.i32_type().const_int(0, false);
 
         let mut indexer_nodes = self.indexer_nodes;
         indexer_nodes.reverse();
         let mut element_pointer = match indexer_nodes.pop() {
             Some(indexer_node) => {
-                let indexer = indexer_node.emit(emitter);
+                let indexer = match indexer_node.emit(emitter).get_int() {
+                    Ok(value) => value,
+                    Err(msg) => panic!(msg),
+                };
                 unsafe {
                     emitter
                         .builder
@@ -67,7 +70,10 @@ impl ArrayElementNode {
             None => panic!(),
         };
         while let Some(indexer_node) = indexer_nodes.pop() {
-            let indexer = indexer_node.emit(emitter);
+            let indexer = match indexer_node.emit(emitter).get_int() {
+                Ok(value) => value,
+                Err(msg) => panic!(msg),
+            };
             element_pointer = unsafe {
                 emitter
                     .builder
@@ -87,12 +93,14 @@ impl ArrayAccessNode {
         let array_element = ArrayElementNode::new(tokens);
         ArrayAccessNode { array_element }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         let array_element_alloca = self.array_element.emit_pointer(emitter);
-        emitter
-            .builder
-            .build_load(array_element_alloca, "array_element")
-            .into_int_value()
+        Value::Int(
+            emitter
+                .builder
+                .build_load(array_element_alloca, "array_element")
+                .into_int_value(),
+        )
     }
 }
 
@@ -125,7 +133,7 @@ impl FunctionCallNode {
             parameters,
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         let identifier = self.identifier;
         let fn_value = match emitter.module.get_function(&identifier) {
             Some(function) => function,
@@ -135,13 +143,16 @@ impl FunctionCallNode {
             .parameters
             .into_iter()
             .map(|val| val.emit(emitter))
+            .map(|val| val.get_int().unwrap())
             .map(|val| val.into())
             .collect();
         let func_call_site = emitter.builder.build_call(fn_value, &parameters, "call");
-        func_call_site
-            .try_as_basic_value()
-            .left()
-            .unwrap()
-            .into_int_value()
+        Value::Int(
+            func_call_site
+                .try_as_basic_value()
+                .left()
+                .unwrap()
+                .into_int_value(),
+        )
     }
 }

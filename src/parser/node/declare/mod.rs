@@ -1,9 +1,8 @@
 pub mod direct;
 pub mod pointer;
 
-use inkwell::values::IntValue;
-
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::Value;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::declare::direct::DirectDeclareNode;
 use crate::parser::node::declare::pointer::PointerDeclareNode;
@@ -37,7 +36,7 @@ impl DeclareNode {
             DeclareNode::Pointer(node) => node.identifier,
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         match self {
             DeclareNode::Direct(node) => node.emit(emitter),
             DeclareNode::Pointer(node) => node.emit(emitter),

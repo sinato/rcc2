@@ -2,9 +2,8 @@ pub mod prefix;
 pub mod primary;
 pub mod suffix;
 
-use inkwell::values::IntValue;
-
 use crate::emitter::emitter::Emitter;
+use crate::emitter::environment::Value;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::unary::prefix::PrefixNode;
 use crate::parser::node::expression::unary::primary::PrimaryNode;
@@ -57,7 +56,7 @@ impl UnaryNode {
             None => UnaryNode::Primary(PrimaryNode::new(tokens)),
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         match self {
             UnaryNode::Primary(node) => node.emit(emitter),
             UnaryNode::Prefix(node) => node.emit(emitter),

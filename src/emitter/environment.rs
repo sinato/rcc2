@@ -1,4 +1,4 @@
-use inkwell::values::PointerValue;
+use inkwell::values::{IntValue, PointerValue};
 
 pub struct Environment {
     variables: Vec<(String, Variable)>,
@@ -45,4 +45,25 @@ pub struct IntVariable {
 pub struct ArrayVariable {
     pub name: String,
     pub pointer: PointerValue,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Value {
+    Int(IntValue),
+    Pointer(PointerValue),
+    Null,
+}
+impl Value {
+    pub fn get_pointer(self) -> Result<PointerValue, String> {
+        match self {
+            Value::Pointer(pointer) => Ok(pointer),
+            _ => Err("this is not a pointer value".to_string()),
+        }
+    }
+    pub fn get_int(self) -> Result<IntValue, String> {
+        match self {
+            Value::Int(value) => Ok(value),
+            _ => Err("this is not a value value".to_string()),
+        }
+    }
 }

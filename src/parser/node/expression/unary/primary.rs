@@ -1,7 +1,5 @@
-use inkwell::values::IntValue;
-
 use crate::emitter::emitter::Emitter;
-use crate::emitter::environment::Variable;
+use crate::emitter::environment::{Value, Variable};
 use crate::lexer::token::{Token, Tokens};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -35,11 +33,11 @@ impl PrimaryNode {
             _ => panic!(),
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         match self.token {
             Token::Num(_) => {
                 let num = self.get_number_u64();
-                emitter.context.i32_type().const_int(num, false)
+                Value::Int(emitter.context.i32_type().const_int(num, false))
             }
             Token::Ide(_) => {
                 let identifier = self.get_identifier();
@@ -53,10 +51,12 @@ impl PrimaryNode {
                         identifier
                     )),
                 };
-                emitter
-                    .builder
-                    .build_load(alloca, &identifier)
-                    .into_int_value()
+                Value::Int(
+                    emitter
+                        .builder
+                        .build_load(alloca, &identifier)
+                        .into_int_value(),
+                )
             }
             _ => panic!(),
         }

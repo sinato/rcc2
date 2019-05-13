@@ -1,7 +1,5 @@
-use inkwell::values::IntValue;
-
 use crate::emitter::emitter::Emitter;
-use crate::emitter::environment::{IntVariable, ArrayVariable, Variable};
+use crate::emitter::environment::{ArrayVariable, IntVariable, Value, Variable};
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::node::expression::unary::UnaryNode;
 use crate::parser::node::expression::ExpressionNode;
@@ -23,7 +21,7 @@ impl DirectDeclareNode {
             None => panic!(),
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         match self {
             DirectDeclareNode::Variable(node) => node.emit(emitter),
             DirectDeclareNode::Array(node) => node.emit(emitter),
@@ -63,14 +61,17 @@ impl VariableDeclareNode {
             None => panic!(),
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         match self.init_expression {
             Some(expression) => {
                 let identifier = self.identifier;
                 let alloca = emitter
                     .builder
                     .build_alloca(emitter.context.i32_type(), &identifier);
-                let variable = Variable::Int(IntVariable{ name: identifier.clone(), pointer: alloca  });
+                let variable = Variable::Int(IntVariable {
+                    name: identifier.clone(),
+                    pointer: alloca,
+                });
                 emitter.environment.update(identifier, variable); // TODO: impl detect redefinition
                 expression.emit(emitter)
             }
@@ -79,9 +80,12 @@ impl VariableDeclareNode {
                 let alloca = emitter
                     .builder
                     .build_alloca(emitter.context.i32_type(), &identifier);
-                let variable = Variable::Int(IntVariable{ name: identifier.clone(), pointer: alloca  });
+                let variable = Variable::Int(IntVariable {
+                    name: identifier.clone(),
+                    pointer: alloca,
+                });
                 emitter.environment.update(identifier, variable); // TODO: impl detect redefinition
-                emitter.context.i32_type().const_int(0, false)
+                Value::Null
             }
         }
     }
@@ -115,7 +119,7 @@ impl ArrayDeclareNode {
             init_sizes,
         }
     }
-    pub fn emit(self, emitter: &mut Emitter) -> IntValue {
+    pub fn emit(self, emitter: &mut Emitter) -> Value {
         let identifier = self.identifier;
 
         let mut init_sizes = self.init_sizes;
@@ -132,8 +136,11 @@ impl ArrayDeclareNode {
             Some(_) => panic!(format!("redefinition of {}", identifier)),
             None => emitter.builder.build_alloca(array_type, &identifier),
         };
-        let variable = Variable::Array(ArrayVariable{ name: identifier.clone(), pointer: alloca });
+        let variable = Variable::Array(ArrayVariable {
+            name: identifier.clone(),
+            pointer: alloca,
+        });
         emitter.environment.update(identifier, variable);
-        emitter.context.i32_type().const_int(0, false)
+        Value::Null
     }
 }
